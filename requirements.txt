@@ -1,0 +1,4 @@
+cachetools
+HomeAssistant-API
+discord.py
+python-dotenv
