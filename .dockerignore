@@ -2,3 +2,4 @@
 .github/
 venv/
 .env*
+docker-compose.yml

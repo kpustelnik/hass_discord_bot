@@ -1,0 +1,10 @@
+name: habot
+services:
+  habot:
+    container_name: habot
+    hostname: habot
+
+    build: .
+    image: "ghcr.io/kpustelnik/hass_discord_bot:latest"
+    env_file:
+      - .env

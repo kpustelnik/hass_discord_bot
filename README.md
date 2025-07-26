@@ -1,1 +1,2 @@
-# discordpytest
+# HomeAssistant Discord Bot
+
