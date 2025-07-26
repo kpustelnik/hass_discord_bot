@@ -1,2 +1,1 @@
 # HomeAssistant Discord Bot
-
