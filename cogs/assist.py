@@ -5,20 +5,18 @@ from discord.ext import commands
 from bot import HASSDiscordBot
 from helpers import conditional_decorator, get_emoji
 
-import os # TODO: FIX
-
 class Assist(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
-  @app_commands.command(
-      name="assist",
-      description="Processes Home Assistant conversation"
-  )
-  @conditional_decorator(
-    app_commands.guilds(int(os.getenv("DISCORD_GUILD_ID"))), # TODO: FIX
-    True
-  )
+    self.bot.tree.add_command(
+      app_commands.Command(
+        name="assist",
+        description="Processes Home Assistant conversation",
+        callback=self.assist
+      ), 
+      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Assist command
+
   @app_commands.describe(message = "Message to send", language = "Language")
   @app_commands.choices(language = [
     app_commands.Choice(name="Polish", value="pl"),
