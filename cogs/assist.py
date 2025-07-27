@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot import HASSDiscordBot
-from helpers import conditional_decorator, get_emoji
+from helpers import get_emoji
 
 class Assist(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:

@@ -2,10 +2,9 @@ import os
 import logging
 from cachetools import TTLCache
 
-from homeassistant_api import Client as HAClient
-
 import discord
 from discord.ext import commands
+from haclient import CustomHAClient
 
 class HASSDiscordBot(commands.Bot):
   def __init__(self, logger: logging.Logger) -> None:
@@ -17,9 +16,10 @@ class HASSDiscordBot(commands.Bot):
     self.conversation_cache = TTLCache(maxsize=100, ttl=15*60)
     self.homeassistant_data_cache = TTLCache(maxsize=100, ttl=15*60)
 
-    self.homeassistant_client = HAClient(
+    self.homeassistant_client = CustomHAClient(
       os.getenv("HOMEASSISTANT_API_URL"),
-      os.getenv("HOMEASSISTANT_TOKEN")
+      os.getenv("HOMEASSISTANT_TOKEN"),
+      use_async=False
     )
     self.homeassistant_url = os.getenv("HOMEASSISTANT_URL")
 

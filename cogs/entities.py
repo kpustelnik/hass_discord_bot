@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from bot import HASSDiscordBot
-from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, conditional_decorator, add_param
+from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, add_param
 
 from enums.homeassistant_cache_id import homeassistant_cache_id
 
@@ -66,6 +66,8 @@ class Entities(commands.Cog):
   @app_commands.describe(entity_id="HomeAssistant entity identifier")
   @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_entity(self, interaction: discord.Interaction, entity_id: str):
+    await interaction.response.defer()
+
     entity = self.bot.homeassistant_client.get_entity(entity_id=entity_id)
     history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), entity_id=entity.entity_id)
 
@@ -86,7 +88,7 @@ class Entities(commands.Cog):
     view = discord.ui.View()
     view.add_item(discord.ui.Button(label="Entity history", url=history_url))
 
-    await interaction.response.send_message(embed=embed, view=view)
+    await interaction.followup.send(embed=embed, view=view)
 
 
 async def setup(bot: HASSDiscordBot) -> None:
