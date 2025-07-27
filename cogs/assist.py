@@ -63,4 +63,4 @@ class Assist(commands.Cog):
       await interaction.followup.send(f"{get_emoji(False)} Failed for unknown reason.", ephemeral=True)
 
 async def setup(bot: HASSDiscordBot) -> None:
-    await bot.add_cog(Assist(bot))
+  await bot.add_cog(Assist(bot))

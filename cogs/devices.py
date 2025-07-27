@@ -8,8 +8,6 @@ import datetime
 from bot import HASSDiscordBot
 from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, add_param
 
-from enums.homeassistant_cache_id import homeassistant_cache_id
-
 class Devices(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
@@ -27,18 +25,13 @@ class Devices(commands.Cog):
       interaction: discord.Interaction,
       current_input: str
   ) -> List[app_commands.Choice[str]]:
-    homeassistant_devices = self.bot.homeassistant_data_cache.get(homeassistant_cache_id.DEVICES)
-    if homeassistant_devices is None: # Need to fetch
-      try:
-        fetched_devices = self.bot.homeassistant_client.custom_get_devices()
-        if fetched_devices is not None:
-          self.bot.homeassistant_data_cache[homeassistant_cache_id.DEVICES] = fetched_devices
-          homeassistant_devices = fetched_devices
-        else:
-          raise Exception("No devices were returned")
-      except Exception as e:
-        print("Failed to fetch the devices", e)
-        return []
+    try:
+      homeassistant_devices = self.bot.homeassistant_client.cache_custom_get_devices()
+      if homeassistant_devices is None:
+        raise Exception("No devices were returned")
+    except Exception as e:
+      print("Failed to fetch devices", e)
+      return []
       
     target_tokens = tokenize(current_input)
     choice_list = [
@@ -85,4 +78,4 @@ class Devices(commands.Cog):
     await interaction.followup.send(embed=embed, view=view)
 
 async def setup(bot: HASSDiscordBot) -> None:
-    await bot.add_cog(Devices(bot))
+  await bot.add_cog(Devices(bot))

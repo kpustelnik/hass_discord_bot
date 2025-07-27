@@ -14,7 +14,6 @@ class HASSDiscordBot(commands.Bot):
     )
 
     self.conversation_cache = TTLCache(maxsize=100, ttl=15*60)
-    self.homeassistant_data_cache = TTLCache(maxsize=100, ttl=15*60)
 
     self.homeassistant_client = CustomHAClient(
       os.getenv("HOMEASSISTANT_API_URL"),

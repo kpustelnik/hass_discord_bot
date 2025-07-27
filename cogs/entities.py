@@ -29,18 +29,13 @@ class Entities(commands.Cog):
       interaction: discord.Interaction,
       current_input: str
   ) -> List[app_commands.Choice[str]]:
-    homeassistant_entities = self.bot.homeassistant_data_cache.get(homeassistant_cache_id.ENTITIES)
-    if homeassistant_entities is None: # Need to fetch
-      try:
-        fetched_entities = self.bot.homeassistant_client.get_entities()
-        if fetched_entities is not None:
-          self.bot.homeassistant_data_cache[homeassistant_cache_id.ENTITIES] = fetched_entities
-          homeassistant_entities = fetched_entities
-        else:
-          raise Exception("No entities were returned")
-      except Exception as e:
-        print("Failed to fetch the entities", e)
-        return []
+    try:
+      homeassistant_entities = self.bot.homeassistant_client.cache_get_entities()
+      if homeassistant_entities is None:
+        raise Exception("No entities were returned")
+    except Exception as e:
+      print("Failed to fetch entities", e)
+      return []
       
     target_tokens = tokenize(current_input)
     choice_list = [
@@ -92,4 +87,4 @@ class Entities(commands.Cog):
 
 
 async def setup(bot: HASSDiscordBot) -> None:
-    await bot.add_cog(Entities(bot))
+  await bot.add_cog(Entities(bot))
