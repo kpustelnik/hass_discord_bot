@@ -156,19 +156,6 @@ class CustomHAClient(HAClient):
   
   # Services
   def custom_get_domains(self) -> List[DomainModel]:
-    # Function for fixing the service fields (proper parsing of [type]: null)
-    def fix_service_fields(fields):
-      for field in fields.values():
-        field_selector = field.get('selector', None)
-        if field_selector is not None:
-          for i, v in field_selector.items():
-            if v is None:
-              field_selector[i] = {} # Create empty object
-
-        field_fields = field.get('fields', None)
-        if field_fields is not None:
-          fix_service_fields(field_fields)
-
     # Apply fixes to all services
     fetched_domains = self.request("services")
     for domain in fetched_domains:
@@ -186,8 +173,23 @@ class CustomHAClient(HAClient):
         
         # Fix field selectors
         service_fields = service.get("fields", None)
+        fields_tofix_queue = []
         if service_fields is not None:
-          fix_service_fields(service_fields)
+          fields_tofix_queue.append(service_fields)
+        
+        # Loop for fixing the service fields (proper parsing of [type]: null)
+        while len(fields_tofix_queue) > 0:
+          fields = fields_tofix_queue.pop(0)
+          for field in fields.values():
+            field_selector = field.get('selector', None)
+            if field_selector is not None:
+              for i, v in field_selector.items():
+                if v is None:
+                  field_selector[i] = {} # Create empty object
+
+            field_fields = field.get('fields', None)
+            if field_fields is not None:
+              fields_tofix_queue.append(field_fields)
     
     return TypeAdapter(List[DomainModel]).validate_python(fetched_domains)
 
