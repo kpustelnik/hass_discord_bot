@@ -1,8 +1,10 @@
 from homeassistant_api import Client as HAClient, Group
 from cachetools import TTLCache
 from pydantic import TypeAdapter
-from models.DeviceModel import DeviceModel
 from typing import List, Optional, TypeVar, Callable, Dict
+
+from models.DeviceModel import DeviceModel
+from models.ConversationModel import ConversationModel
 
 T = TypeVar('T')
 
@@ -22,6 +24,7 @@ class CustomHAClient(HAClient):
         data = fetched_data
     return data
 
+  # Devices
   def custom_get_devices(self) -> List[DeviceModel]:
     fetched_devices_json = self.get_rendered_template('''
     {% set devices = states | map(attribute='entity_id') | map('device_id') | unique | reject('eq',None) | list %}
@@ -60,5 +63,13 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(DeviceModel).validate_json(fetched_device_json)
   
+  # Entities
   def cache_get_entities(self) -> Dict[str, Group]:
     return self.cache_data(lambda: self.get_entities(), homeassistant_cache_id.ENTITIES)
+  # Conversations
+  def custom_conversation(self, data) -> ConversationModel:
+    return ConversationModel.model_validate(self.request(
+      "conversation/process",
+      method="POST",
+      json=data
+    ))
