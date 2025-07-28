@@ -90,8 +90,8 @@ class ServiceTargetEntity(BaseModel):
   # `area_id``, `device_id``, `entity_id``, label can be passed as a target
 
 class ServiceTarget(BaseModel):
-  device: Optional[ServiceTargetDevice] = None # Always has 1 item if available
-  entity: Optional[ServiceTargetEntity] = None # Always has 1 item if available
+  device: Optional[ServiceTargetDevice] = None # Not currently used for anything? (The only action which has it also has `entity` target)
+  entity: Optional[ServiceTargetEntity] = None
 
 class ServiceResponse(BaseModel):
   optional: Optional[bool] = None

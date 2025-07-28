@@ -1,4 +1,4 @@
-from typing import Optional, Literal, List
+from typing import Optional, Literal, List, Dict
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -35,17 +35,45 @@ class Services(commands.Cog):
       self.bot.logger.error("Failed to fetch domains and create service action commands")
   
   def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
+    # Create handler function
     async def handler(interaction: discord.Interaction, entity_id: str, **kwargs):
+      await interaction.response.defer()
+
+    # Adjust handler function properties
     handler.__name__ = f"{service_id}"  # required to avoid duplicate names
     handler.__qualname__ = handler.__name__
     
-    params = [
+    params: List[inspect.Parameter] = [
         inspect.Parameter(
             name="interaction",
             kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
             annotation=discord.Interaction
-        ),
+        )
     ]
+    descriptions: Dict[str, str] = {}
+
+    if service.target is not None and service.target.entity is not None:
+      params.append(
+        inspect.Parameter(
+          name="service_action_target",
+          kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+          annotation=str
+        )
+      )
+      descriptions["service_action_target"] = "HomeAssistant service action target"
+
+    try:
+
+      handler.__signature__ = inspect.Signature(params)
+
+      cmd = group.command(name=service_id)(
+        app_commands.describe(**descriptions)(handler)
+      )
+
+      if service.target is not None and service.target.entity is not None:
+        cmd._params["service_action_target"].autocomplete = partial(Autocompletes.area_device_entity_autocomplete, self) # Ugly solution but it works
+    except Exception as e:
+      self.bot.logger.error("Failed to add service", domain.domain, service_id, e)
 
 async def setup(bot: HASSDiscordBot) -> None:
   await bot.add_cog(Services(bot))
