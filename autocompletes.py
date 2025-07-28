@@ -144,6 +144,7 @@ class Autocompletes():
     device_choice_list = await Autocompletes.get_device_autocomplete_choices(cog, current_input, prefix='DEVICE$', display_prefix='Device: ')
     entity_choice_list = await Autocompletes.get_entity_autocomplete_choices(cog, current_input, prefix='ENTITY$', display_prefix='Entity: ')
     choice_list = area_choice_list + device_choice_list + entity_choice_list
+    choice_list.sort(key=lambda x: x[0], reverse=True)
 
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
     return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]

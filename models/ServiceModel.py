@@ -60,6 +60,7 @@ class ServiceFieldSelector(BaseModel):
   color_rgb: Optional[ServiceFieldSelectorObject] = None # Treat like object
   device: Optional[ServiceFieldSelectorDevice] = None # Treat like entity
   icon: Optional[ServiceFieldSelectorText] = None # Treat like text
+  constant: Optional[ServiceFieldSelectorConstant] = None
 
 class ServiceFieldFilter(BaseModel):
   supported_features: Optional[List[int]] = None # Bitset (any needs to be supported)
