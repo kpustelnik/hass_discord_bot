@@ -25,7 +25,7 @@ class HASSDiscordBot(commands.Bot):
     discord_guild_id_env = os.getenv("DISCORD_GUILD_ID")
     self.discord_main_guild_id = int(discord_guild_id_env) if discord_guild_id_env is not None else None
 
-    self.MAX_AUTOCORRECT_CHOICES = 25
+    self.MAX_AUTOCOMPLETE_CHOICES = 25
     self.SIMILARITY_TOLERANCE = 0.2 # Only display items with score >= max_score * (1 - SIMILARITY_TOLERANCE)
 
     self.logger = logger
