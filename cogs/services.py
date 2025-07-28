@@ -14,7 +14,7 @@ class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
   
-    ha_domains = self.bot.homeassistant_client.get_domains() # TODO: Get custom domains
+    ha_domains = self.bot.homeassistant_client.cache_custom_get_domains()
     for domain in ha_domains.values():
       group = app_commands.Group(
         name=domain.domain_id,

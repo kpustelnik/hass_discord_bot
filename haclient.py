@@ -6,10 +6,11 @@ from typing import List, Optional, TypeVar, Callable, Dict
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
 from models.ServiceModel import DomainModel
+from models.AreaModel import AreaModel
 
 T = TypeVar('T')
 
-from enums.homeassistant_cache_id import homeassistant_cache_id
+from enums.HomeAssistantCacheId import HomeAssistantCacheId
 
 class CustomHAClient(HAClient):
   def __init__(self, *args, **kwargs):
@@ -24,6 +25,54 @@ class CustomHAClient(HAClient):
         self.cache[id] = fetched_data
         data = fetched_data
     return data
+  
+  # Areas
+  def custom_get_areas(self) -> List[AreaModel]:
+    fetched_areas_json: str = self.get_rendered_template('''
+    {%- set ns = namespace(areas = []) %}
+    {%- for area_id in areas() %}
+      {%- set entities = area_entities(area_id) | list %}
+      {%- set devices = area_devices(area_id) | list %}
+      {%- set ns.areas = ns.areas + [
+        {
+          "id": area_id,
+          "name": area_name(area_id),
+          "entities": entities,
+          "devices": devices
+        }
+      ] %}
+    {%- endfor %}
+    {{ ns.areas | tojson }}
+    ''')
+
+    return TypeAdapter(List[AreaModel]).validate_json(fetched_areas_json)
+  
+  def cache_custom_get_areas(self) -> List[AreaModel]:
+     return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS)
+
+  def custom_get_area(self, area_id: str) -> Optional[AreaModel]:
+    # TODO: Escape the area_id
+    fetched_area_json: str = self.get_rendered_template(
+    f"{"{%"}- set area_id = '{area_id}' {"%}"}"     
+    +
+    '''
+    {%- set entities = area_entities(area_id) | list %}
+    {%- set devices = area_devices(area_id) | list %}
+    {%- set name = area_name(area_id) %}
+    {%- if name %}
+      {{ {
+        "id": area_id,
+        "name": name,
+        "entities": entities,
+        "devices": devices
+      } | tojson }}
+    {%- endif %}
+    ''')
+
+    if fetched_area_json == '':
+      return None
+
+    return TypeAdapter(AreaModel).validate_json(fetched_area_json)
 
   # Devices
   def custom_get_devices(self) -> List[DeviceModel]:
@@ -33,7 +82,22 @@ class CustomHAClient(HAClient):
     {%- for device_id in devices %}
       {%- set entities = device_entities(device_id) | list %}
       {%- if entities %}
-        {%- set ns.devices = ns.devices + [ { "id": device_id, "name": device_attr(device_id, "name"), "entities": entities } ] %}
+        {%- set ns.devices = ns.devices + [
+          {
+            "id": device_id,
+            "area_id": device_attr(device_id, "area_id"),
+            "device_id": device_attr(device_id, "device_id"),
+            "name": device_attr(device_id, "name"),
+            "name_by_user": device_attr(device_id, "name_by_user"),
+            "manufacturer": device_attr(device_id, "manufacturer"),
+            "model": device_attr(device_id, "model"),
+            "model_id": device_attr(device_id, "model_id"),
+            "serial_number": device_attr(device_id, "serial_number"),
+            "hw_version": device_attr(device_id, "hw_version"),
+            "sw_version": device_attr(device_id, "sw_version"),
+            "entities": entities
+          }
+        ] %}
       {%- endif %}
     {%- endfor %}
     {{ ns.devices | tojson }}
@@ -42,9 +106,10 @@ class CustomHAClient(HAClient):
     return TypeAdapter(List[DeviceModel]).validate_json(fetched_devices_json)
   
   def cache_custom_get_devices(self) -> List[DeviceModel]:
-    return self.cache_data(lambda: self.custom_get_devices(), homeassistant_cache_id.DEVICES)
+    return self.cache_data(lambda: self.custom_get_devices(), HomeAssistantCacheId.DEVICES)
 
   def custom_get_device(self, device_id: str) -> Optional[DeviceModel]:
+    # TODO: Escape the device id
     fetched_device_json: str = self.get_rendered_template(
     f"{"{%"}- set device_id = '{device_id}' {"%}"}"     
     +
@@ -53,7 +118,16 @@ class CustomHAClient(HAClient):
     {%- if entities %}
       {{ {
         "id": device_id,
+        "area_id": device_attr(device_id, "area_id"),
+        "device_id": device_attr(device_id, "device_id"),
         "name": device_attr(device_id, "name"),
+        "name_by_user": device_attr(device_id, "name_by_user"),
+        "manufacturer": device_attr(device_id, "manufacturer"),
+        "model": device_attr(device_id, "model"),
+        "model_id": device_attr(device_id, "model_id"),
+        "serial_number": device_attr(device_id, "serial_number"),
+        "hw_version": device_attr(device_id, "hw_version"),
+        "sw_version": device_attr(device_id, "sw_version"),
         "entities": entities
       } | tojson }}
     {%- endif %}
@@ -66,7 +140,7 @@ class CustomHAClient(HAClient):
   
   # Entities
   def cache_get_entities(self) -> Dict[str, Group]:
-    return self.cache_data(lambda: self.get_entities(), homeassistant_cache_id.ENTITIES)
+    return self.cache_data(lambda: self.get_entities(), HomeAssistantCacheId.ENTITIES)
   
   # Services
   def custom_get_domains(self) -> List[DomainModel]:
@@ -106,7 +180,7 @@ class CustomHAClient(HAClient):
     return TypeAdapter(List[DomainModel]).validate_python(fetched_domains)
 
   def cache_custom_get_domains(self) -> List[DomainModel]:
-    return self.cache_data(lambda: self.custom_get_domains(), homeassistant_cache_id.DOMAINS)
+    return self.cache_data(lambda: self.custom_get_domains(), HomeAssistantCacheId.DOMAINS)
 
   # Conversations
   def custom_conversation(self, data) -> ConversationModel:

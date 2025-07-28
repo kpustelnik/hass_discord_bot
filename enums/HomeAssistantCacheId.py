@@ -1,0 +1,5 @@
+class HomeAssistantCacheId:
+  ENTITIES = "ENTITIES"
+  DOMAINS = "DOMAINS"
+  DEVICES = "DEVICES"
+  AREAS = "AREAS"
