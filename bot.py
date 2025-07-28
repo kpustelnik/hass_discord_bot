@@ -49,13 +49,13 @@ class HASSDiscordBot(commands.Bot):
     return await super().setup_hook()
   
   async def on_ready(self):
-    print("Bot is ready")
+    self.logger.info("Bot is ready")
     try:
       synced = await self.tree.sync()
-      print(f"Synced {len(synced)} commands")
+      self.logger.info(f"Synced {len(synced)} commands")
       if self.discord_main_guild_id is not None:
   #      await discord_bot.tree.clear_commands(guild=discord.Object(int(discord_main_guild_id)))
         synced_guild = await self.tree.sync(guild=discord.Object(self.discord_main_guild_id))
-        print(f"Synced {len(synced_guild)} guild commands")
+        self.logger.info(f"Synced {len(synced_guild)} guild commands")
     except Exception as e:
-      print("Sync error", e)
+      self.logger.error("Sync error", e)

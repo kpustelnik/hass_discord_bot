@@ -16,7 +16,7 @@ class Autocompletes():
       if homeassistant_devices is None:
         raise Exception("No devices were returned")
     except Exception as e:
-      print("Failed to fetch devices", e)
+      cog.bot.logger.error("Failed to fetch devices", e)
       return []
       
     target_tokens = tokenize(current_input)
@@ -48,7 +48,7 @@ class Autocompletes():
       if homeassistant_entities is None:
         raise Exception("No entities were returned")
     except Exception as e:
-      print("Failed to fetch entities", e)
+      cog.bot.logger.error("Failed to fetch entities", e)
       return []
       
     target_tokens = tokenize(current_input)
