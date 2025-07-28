@@ -1,12 +1,15 @@
-from homeassistant_api import Client as HAClient, Group
+from homeassistant_api import Client as HAClient
 from cachetools import TTLCache
 from pydantic import TypeAdapter
-from typing import List, Optional, TypeVar, Callable, Dict
+from typing import List, Optional, TypeVar, Callable
+from helpers import find
+import re
 
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
 from models.ServiceModel import DomainModel
 from models.AreaModel import AreaModel
+from models.EntityModel import EntityModel
 
 T = TypeVar('T')
 
@@ -17,6 +20,14 @@ class CustomHAClient(HAClient):
     self.cache = TTLCache(maxsize=100, ttl=15*60)
     super().__init__(*args, **kwargs)
   
+  @staticmethod
+  def get_entity_friendlyname(entity: EntityModel) -> str | None:
+    return entity.attributes["friendly_name"] if "friendly_name" in entity.attributes else None
+
+  @staticmethod
+  def escape_id(id: str) -> str:
+    return re.sub('[^a-zA-Z0-9_]', '', id)
+
   def cache_data(self, func: Callable[[], T], id: str) -> T:
     data: T | None = self.cache.get(id)
     if data is None: # Need to fetch
@@ -51,9 +62,8 @@ class CustomHAClient(HAClient):
      return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS)
 
   def custom_get_area(self, area_id: str) -> Optional[AreaModel]:
-    # TODO: Escape the area_id
     fetched_area_json: str = self.get_rendered_template(
-    f"{"{%"}- set area_id = '{area_id}' {"%}"}"     
+    f"{"{%"}- set area_id = '{self.escape_id(area_id)}' {"%}"}"     
     +
     '''
     {%- set entities = area_entities(area_id) | list %}
@@ -109,9 +119,8 @@ class CustomHAClient(HAClient):
     return self.cache_data(lambda: self.custom_get_devices(), HomeAssistantCacheId.DEVICES)
 
   def custom_get_device(self, device_id: str) -> Optional[DeviceModel]:
-    # TODO: Escape the device id
     fetched_device_json: str = self.get_rendered_template(
-    f"{"{%"}- set device_id = '{device_id}' {"%}"}"     
+    f"{"{%"}- set device_id = '{self.escape_id(device_id)}' {"%}"}"     
     +
     '''
     {%- set entities = device_entities(device_id) | list %}
@@ -139,8 +148,14 @@ class CustomHAClient(HAClient):
     return TypeAdapter(DeviceModel).validate_json(fetched_device_json)
   
   # Entities
-  def cache_get_entities(self) -> Dict[str, Group]:
-    return self.cache_data(lambda: self.get_entities(), HomeAssistantCacheId.ENTITIES)
+  def custom_get_entities(self) -> List[EntityModel]:
+    return TypeAdapter(List[EntityModel]).validate_python(self.request("states"))
+
+  def cache_custom_get_entities(self) -> List[EntityModel]:
+    return self.cache_data(lambda: self.custom_get_entities(), HomeAssistantCacheId.ENTITIES)
+  
+  def custom_get_entity(self, entity_id: str) -> Optional[EntityModel]:
+    return EntityModel.model_validate(self.request(f"states/{self.escape_id(entity_id)}"))
   
   # Services
   def custom_get_domains(self) -> List[DomainModel]:
@@ -181,6 +196,10 @@ class CustomHAClient(HAClient):
 
   def cache_custom_get_domains(self) -> List[DomainModel]:
     return self.cache_data(lambda: self.custom_get_domains(), HomeAssistantCacheId.DOMAINS)
+  
+  def custom_get_domain(self, domain_name: str) -> Optional[DomainModel]:
+    domains = self.custom_get_domains()
+    return find(lambda x: x.name == domain_name, domains)
 
   # Conversations
   def custom_conversation(self, data) -> ConversationModel:

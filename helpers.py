@@ -1,7 +1,10 @@
 import re
 from Levenshtein import distance as levenshtein_distance
+from typing import TypeVar, Callable, Iterable
+
+T = TypeVar('T')
   
-def add_param(url, **params):
+def add_param(url: str, **params) -> str:
     """Add query parameters to url"""
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
     u = urlparse(url)
@@ -9,11 +12,18 @@ def add_param(url, **params):
     q.update({k: [v] for k, v in params.items()})
     return urlunparse(u._replace(query=urlencode(q, doseq=True)))
 
-def shorten_option_name(name):
+def shorten_option_name(name: str) -> str:
   """Shortens Discord choice option (max 100 characters)"""
   if len(name) > 100:
     return f"{name[:97]}..."
   return name
+
+def find(f: Callable[[T], bool], seq: Iterable[T]) -> T | None:
+  """Return first item in sequence matching f(item) predicate"""
+  for item in seq:
+    if f(item): 
+      return item
+  return None
   
 # Tokenizing identifiers and calculating their similarity (mostly for autocompletion feature)
   

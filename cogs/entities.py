@@ -31,18 +31,19 @@ class Entities(commands.Cog):
     entity = self.bot.homeassistant_client.get_entity(entity_id=entity_id)
     history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), entity_id=entity.entity_id)
 
+    friendly_name = self.bot.homeassistant_client.get_entity_friendlyname(entity)
     embed = discord.Embed(
-      title=f"{str(entity.state.attributes["friendly_name"]) if "friendly_name" in entity.state.attributes else "?"}",
+      title=f"{friendly_name if friendly_name is not None else "?"}",
       description=entity.entity_id,
       color=discord.Colour.default(),
       timestamp=datetime.datetime.now()
     )
 
-    embed.add_field(name="State", value=entity.state.state)
-    embed.add_field(name="Last changed", value=str(entity.state.last_changed))
-    embed.add_field(name="Last updated", value=str(entity.state.last_updated))
+    embed.add_field(name="State", value=entity.state)
+    embed.add_field(name="Last changed", value=str(entity.last_changed))
+    embed.add_field(name="Last updated", value=str(entity.last_updated))
     embed.add_field(name="", value="Attributes", inline=False)
-    for name, value in filter(lambda x: x[0] not in self.OMMITED_ENTITY_ATTRIBUTES, entity.state.attributes.items()):
+    for name, value in filter(lambda x: x[0] not in self.OMMITED_ENTITY_ATTRIBUTES, entity.attributes.items()):
       embed.add_field(name=name, value=str(value))
 
     view = discord.ui.View()

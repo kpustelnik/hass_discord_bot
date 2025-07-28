@@ -44,7 +44,7 @@ class Assist(commands.Cog):
       try:
         response_data = self.bot.homeassistant_client.custom_conversation(request_data)
       except Exception as e:
-        self.bot.logger.error("Failed to reach homeassistant", e)
+        self.bot.logger.error("Failed to reach HomeAssistant", e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to reach HomeAssistant.", ephemeral=True)
       
       # Update the conversation id cache
