@@ -12,11 +12,17 @@ def add_param(url: str, **params) -> str:
     q.update({k: [v] for k, v in params.items()})
     return urlunparse(u._replace(query=urlencode(q, doseq=True)))
 
-def shorten_option_name(name: str) -> str:
+def shorten(txt: str, limit: int) -> str:
+  if len(txt) > limit:
+    return f"{txt[:limit-3]}..."
+  return txt
+
+def shorten_option_name(name: str):
   """Shortens Discord choice option (max 100 characters)"""
-  if len(name) > 100:
-    return f"{name[:97]}..."
-  return name
+  return shorten(name, 100)
+
+def shorten_embed_value(value: str):
+  return shorten(value, 1024)
 
 def find(f: Callable[[T], bool], seq: Iterable[T]) -> T | None:
   """Return first item in sequence matching f(item) predicate"""

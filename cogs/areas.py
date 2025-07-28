@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from bot import HASSDiscordBot
 from enums.emojis import Emoji
-from helpers import add_param, find
+from helpers import add_param, find, shorten_embed_value
 from autocompletes import Autocompletes
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
@@ -36,13 +36,13 @@ class Areas(commands.Cog):
       try:
         area_data: AreaModel | None = self.bot.homeassistant_client.custom_get_area(area_id=area_id)
         if area_data is None:
-          raise Exception("No area was returned")
+          return await interaction.followup.send(f"{Emoji.ERROR} No area found.", ephemeral=True)
       except Exception as e:
         self.bot.logger.error("Failed to fetch area from HomeAssistant", e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant.", ephemeral=True)
 
       history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), area_id=area_data.id)
-      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/areas/area/{area_data.id}")
+      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/areas/area/{self.bot.homeassistant_client.escape_id(area_data.id)}")
       
       embed = discord.Embed(
         title=str(area_data.name),
@@ -54,7 +54,7 @@ class Areas(commands.Cog):
       if len(area_data.devices) > 0:
         devices: List[str] = []
         try:
-          devices_data: List[DeviceModel] = self.bot.homeassistant_client.custom_get_devices()
+          devices_data: List[DeviceModel] = self.bot.homeassistant_client.cache_custom_get_devices()
           if devices_data is None:
             raise Exception("No devices were returned")
         except Exception as e:
@@ -64,16 +64,16 @@ class Areas(commands.Cog):
         for device_id in area_data.devices:
           device: DeviceModel | None = find(lambda x: x.id == device_id, devices_data)
           if device is not None:
-            devices.append(f"{device.name} ({device.id})")
+            devices.append(f"**{device.name}** ({device.id})")
           else:
             devices.append(str(device_id))
 
-        embed.add_field(name="Devices", value=",".join(devices))
+        embed.add_field(name="Devices", value=shorten_embed_value("\n".join(devices)))
 
       if len(area_data.entities) > 0:
         entities: List[str] = []
         try:
-          entities_data: List[EntityModel] = self.bot.homeassistant_client.custom_get_entities()
+          entities_data: List[EntityModel] = self.bot.homeassistant_client.cache_custom_get_entities()
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:
@@ -83,8 +83,11 @@ class Areas(commands.Cog):
         for entity_id in area_data.entities:
           entity: EntityModel | None = find(lambda x: x.entity_id == entity_id, entities_data)
           if entity is not None:
-            entities.append(f"{entity}")
-        embed.add_field(name="Entities", value=",".join(area_data.entities))
+            friendly_name = self.bot.homeassistant_client.get_entity_friendlyname(entity)
+            entities.append(f"**{friendly_name if friendly_name is not None else "?"}** ({entity.entity_id})")
+          else:
+            entities.append(str(entity_id))
+        embed.add_field(name="Entities", value=shorten_embed_value("\n".join(entities)))
 
       view = discord.ui.View()
       view.add_item(discord.ui.Button(label="Area history", url=history_url))
