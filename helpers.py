@@ -1,12 +1,5 @@
 import re
 from Levenshtein import distance as levenshtein_distance
-
-def get_emoji(success: bool):
-  """Returns the success or error emoji"""
-  if success:
-    return '✅'
-  else:
-    return '❌'
   
 def add_param(url, **params):
     """Add query parameters to url"""
