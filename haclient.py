@@ -26,7 +26,7 @@ class CustomHAClient(HAClient):
 
   @staticmethod
   def escape_id(id: str) -> str:
-    return re.sub('[^a-zA-Z0-9_]', '', id)
+    return re.sub('[^a-zA-Z0-9_:.]', '', id)
 
   def cache_data(self, func: Callable[[], T], id: str, bypass=False) -> T:
     if not bypass:

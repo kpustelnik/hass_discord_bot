@@ -40,25 +40,32 @@ class Devices(commands.Cog):
         self.bot.logger.error("Failed to fetch device from HomeAssistant", e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch device from HomeAssistant.", ephemeral=True)
       
-      try:
-        area_data: AreaModel | None = self.bot.homeassistant_client.custom_get_area(area_id=device_data.area_id)
-        if area_data is None:
-          raise Exception("No area was returned")
-      except Exception as e:
-        self.bot.logger.error("Failed to fetch area from HomeAssistant", e)
-        return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant", ephemeral=True)
+      area_data: AreaModel | None = None
+      if device_data.area_id is not None:
+        try:
+          area_data = self.bot.homeassistant_client.custom_get_area(area_id=device_data.area_id)
+          if area_data is None:
+            raise Exception("No area was returned")
+        except Exception as e:
+          self.bot.logger.error("Failed to fetch area from HomeAssistant", e)
+          return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant", ephemeral=True)
 
-      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), device_id=device_data.id)
-      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/devices/device/{self.bot.homeassistant_client.escape_id(device_data.id)}")
+      escaped_device_id = self.bot.homeassistant_client.escape_id(device_data.id)
+      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), device_id=escaped_device_id)
+      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/devices/device/{escaped_device_id}")
 
       embed = discord.Embed(
-        title=str(device_data.name) + (f" {device_data.name_by_user}" if device_data.name_by_user is not None else ''),
+        title=str(device_data.name) + (f" ({device_data.name_by_user})" if device_data.name_by_user is not None else ''),
         description=str(device_data.id),
         color=discord.Colour.default(),
         timestamp=datetime.datetime.now()
       )
 
-      embed.add_field(name='Area', value=f'**{area_data.name}** ({area_data.id})')
+      if area_data is not None:
+        embed.add_field(name='Area', value=f'**{area_data.name}** ({area_data.id})')
+      else:
+        embed.add_field(name='Area', value='-')
+
       embed.add_field(
         name='Other data',
         value="\n".join([
@@ -102,8 +109,6 @@ class Devices(commands.Cog):
     except Exception as e:
       self.bot.logger.error("General error", e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
-
-    await interaction.response.defer()
 
 async def setup(bot: HASSDiscordBot) -> None:
   await bot.add_cog(Devices(bot))

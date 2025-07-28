@@ -1,13 +1,18 @@
 import urllib.parse
 import datetime
+from typing import List
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from bot import HASSDiscordBot
-from helpers import add_param
+from helpers import add_param, find
 from autocompletes import Autocompletes
+from models.EntityModel import EntityModel
+from models.AreaModel import AreaModel
+from models.DeviceModel import DeviceModel
+from enums.emojis import Emoji
 
 class Entities(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
@@ -26,30 +31,77 @@ class Entities(commands.Cog):
   @app_commands.describe(entity_id="HomeAssistant entity identifier")
   @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_entity(self, interaction: discord.Interaction, entity_id: str):
-    await interaction.response.defer()
+    try:
+      await interaction.response.defer()
 
-    entity = self.bot.homeassistant_client.get_entity(entity_id=entity_id)
-    history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), entity_id=entity.entity_id)
+      try:
+        entity_data: EntityModel | None = self.bot.homeassistant_client.custom_get_entity(entity_id=entity_id)
+        if entity_data is None:
+          return await interaction.followup.send(f"{Emoji.ERROR} No entity found.", ephemeral=True)
+      except Exception as e:
+        self.bot.logger.error("Failed to fetch entity from HomeAssistant", e)
+        return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entity from HomeAssistant.", ephemeral=True)
+      
+      try:
+        areas_data: List[AreaModel] = self.bot.homeassistant_client.cache_custom_get_areas()
+        if areas_data is None:
+          raise Exception("No areas were returned")
+      except Exception as e:
+        self.bot.logger.error("Failed to fetch areas from HomeAssistant", e)
+        return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch areas from HomeAssistant", ephemeral=True)
+      
+      try:
+        devices_data: List[DeviceModel] = self.bot.homeassistant_client.cache_custom_get_devices()
+        if devices_data is None:
+          raise Exception("No devices were returned")
+      except Exception as e:
+        self.bot.logger.error("Failed to fetch devices from HomeAssistant", e)
+        return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch devices from HomeAssistant", ephemeral=True)
 
-    friendly_name = self.bot.homeassistant_client.get_entity_friendlyname(entity)
-    embed = discord.Embed(
-      title=f"{friendly_name if friendly_name is not None else "?"}",
-      description=entity.entity_id,
-      color=discord.Colour.default(),
-      timestamp=datetime.datetime.now()
-    )
+      escaped_entity_id = self.bot.homeassistant_client.escape_id(entity_data.entity_id)
+      friendly_name = self.bot.homeassistant_client.get_entity_friendlyname(entity_data)
+      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), entity_id=escaped_entity_id)
 
-    embed.add_field(name="State", value=entity.state)
-    embed.add_field(name="Last changed", value=str(entity.last_changed))
-    embed.add_field(name="Last updated", value=str(entity.last_updated))
-    embed.add_field(name="", value="Attributes", inline=False)
-    for name, value in filter(lambda x: x[0] not in self.OMMITED_ENTITY_ATTRIBUTES, entity.attributes.items()):
-      embed.add_field(name=name, value=str(value))
+      embed = discord.Embed(
+        title=f"{friendly_name if friendly_name is not None else "?"}",
+        description=str(entity_data.entity_id),
+        color=discord.Colour.default(),
+        timestamp=datetime.datetime.now()
+      )
 
-    view = discord.ui.View()
-    view.add_item(discord.ui.Button(label="Entity history", url=history_url))
+      embed.add_field(name="State", value=str(entity_data.state))
 
-    await interaction.followup.send(embed=embed, view=view)
+      # Area & Device
+      device_data: DeviceModel | None = find(lambda device: entity_data.entity_id in device.entities, devices_data)
+      area_data: AreaModel | None = find(lambda area: entity_data.entity_id in area.entities, areas_data)
+      if area_data is None and device_data is not None:
+        area_data = find(lambda area: area.id == device_data.area_id, areas_data)
+
+      # Add to embed
+      if device_data is not None:
+        embed.add_field(name="Device", value=f"**{device_data.name}** ({device_data.id})")
+      else:
+        embed.add_field(name="Device", value="-")
+
+      if area_data is not None:
+        embed.add_field(name="Area", value=f"**{area_data.name}** ({area_data.id})")
+      else:
+        embed.add_field(name="Area", value="-")
+
+      embed.add_field(name="Last changed", value=str(entity_data.last_changed))
+      embed.add_field(name="Last updated", value=str(entity_data.last_updated))
+      embed.add_field(name="Last reported", value=str(entity_data.last_reported))
+      embed.add_field(name="", value="Attributes", inline=False)
+      for name, value in filter(lambda x: x[0] not in self.OMMITED_ENTITY_ATTRIBUTES, entity_data.attributes.items()):
+        embed.add_field(name=name, value=str(value))
+
+      view = discord.ui.View()
+      view.add_item(discord.ui.Button(label="Entity history", url=history_url))
+
+      await interaction.followup.send(embed=embed, view=view)
+    except Exception as e:
+      self.bot.logger.error("General error", e)
+      await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 
 async def setup(bot: HASSDiscordBot) -> None:

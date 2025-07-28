@@ -41,8 +41,9 @@ class Areas(commands.Cog):
         self.bot.logger.error("Failed to fetch area from HomeAssistant", e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant.", ephemeral=True)
 
-      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), area_id=area_data.id)
-      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/areas/area/{self.bot.homeassistant_client.escape_id(area_data.id)}")
+      escaped_area_id = self.bot.homeassistant_client.escape_id(area_data.id)
+      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), area_id=escaped_area_id)
+      config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/areas/area/{escaped_area_id}")
       
       embed = discord.Embed(
         title=str(area_data.name),

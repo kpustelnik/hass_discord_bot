@@ -79,7 +79,7 @@ class Autocompletes():
       current_input: str
   ) -> List[app_commands.Choice[str]]:
     try:
-      homeassistant_entities: List[EntityModel] = cog.bot.homeassistant_client.cache_get_entities()
+      homeassistant_entities: List[EntityModel] = cog.bot.homeassistant_client.cache_custom_get_entities()
       if homeassistant_entities is None:
         raise Exception("No entities were returned")
     except Exception as e:
