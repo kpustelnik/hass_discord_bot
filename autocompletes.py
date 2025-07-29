@@ -150,7 +150,9 @@ class Autocompletes():
       current_input: str,
       prefix: str = '',
       display_prefix: str = '',
-      matching_entities: Set[str] | None = None
+      matching_entities: Set[str] | None = None,
+      integration: Optional[str] = None,
+      domain: Optional[str] = None
   ) -> List[app_commands.Choice[str]]:
     try:
       homeassistant_entities: List[EntityModel] = cog.bot.homeassistant_client.cache_custom_get_entities()
@@ -161,7 +163,20 @@ class Autocompletes():
       return []
     
     checked_entities = filter(lambda x: x.entity_id in matching_entities, homeassistant_entities) if matching_entities is not None else homeassistant_entities
-      
+    
+    # Filter entities not belonging to specified integration
+    if integration is not None:
+      try:
+        integration_entities: List[str] = cog.bot.homeassistant_client.custom_get_integration_entities(integration)
+      except Exception as e:
+        cog.bot.logger.error("Failed to fetch integration entities", type(e), e)
+        return []
+      checked_entities = filter(lambda x: x.entity_id in integration_entities, checked_entities)
+
+    # Filter entities not belonging to specified domain    
+    if domain is not None:
+      checked_entities = filter(lambda x: get_domain_from_entity_id(x.entity_id) == domain, checked_entities)
+
     target_tokens = tokenize(current_input)
     choice_list = [
       (
@@ -184,6 +199,19 @@ class Autocompletes():
       current_input: str
   ) -> List[app_commands.Choice[str]]:
     choice_list: List[app_commands.Choice[str]] = await Autocompletes.get_entity_autocomplete_choices(cog, current_input)
+    choice_list.sort(key=lambda x: x[0], reverse=True)
+
+    min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+    return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  
+  async def filtered_entity_autocomplete(
+      cog,
+      interaction: discord.Interaction,
+      current_input: str,
+      integration: Optional[str] = None,
+      domain: Optional[str] = None
+  ) -> List[app_commands.Choice[str]]:
+    choice_list: List[app_commands.Choice[str]] = await Autocompletes.get_entity_autocomplete_choices(cog, current_input, integration=integration, domain=domain)
     choice_list.sort(key=lambda x: x[0], reverse=True)
 
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
@@ -238,7 +266,7 @@ class Autocompletes():
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
     return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
   
-  # Others
+  # Validation
   @staticmethod
   def require_choice(input: str, all_choices: List[str]) -> str:
     if input in all_choices:

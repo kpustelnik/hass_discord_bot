@@ -54,7 +54,6 @@ class HASSDiscordBot(commands.Bot):
       synced = await self.tree.sync()
       self.logger.info(f"Synced {len(synced)} commands")
       if self.discord_main_guild_id is not None:
-  #      await discord_bot.tree.clear_commands(guild=discord.Object(int(discord_main_guild_id)))
         synced_guild = await self.tree.sync(guild=discord.Object(self.discord_main_guild_id))
         self.logger.info(f"Synced {len(synced_guild)} guild commands")
     except Exception as e:

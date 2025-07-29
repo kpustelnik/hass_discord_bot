@@ -44,6 +44,16 @@ class Services(commands.Cog):
             return json.loads(src)
         except json.JSONDecodeError:
             raise ValueError("Incorrect input")
+        
+  @staticmethod
+  def transform_multiple(src: str, checker: Callable[[Any], bool]) -> List[Any]:
+    parsed_object = Services.transform_object(src)
+    if not isinstance(parsed_object, list):
+      raise ValueError("Input is not a list")
+    for value in parsed_object:
+      if not checker(value):
+        raise ValueError("Incorrect input elements")
+    return parsed_object
   
   def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
@@ -186,31 +196,49 @@ class Services(commands.Cog):
               if field.selector.text is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.text.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.config_entry is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.config_entry.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.conversation_agent is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.conversation_agent.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.number is not None: # ServiceFieldSelectorNumber
+                subtype = int if field.selector.number.step == 1 else float
                 if field.selector.number.min is not None or field.selector.number.max is not None:
-                  field_type = app_commands.Range[float, field.selector.number.min, field.selector.number.max]
+                  field_type = app_commands.Range[subtype, field.selector.number.min, field.selector.number.max]
                 else:
-                  field_type = float # TODO
+                  field_type = subtype
                 if field.default is not None: default_value = float(field.default)
+
               elif field.selector.duration is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.duration.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.entity is not None: # ServiceFieldSelectorEntity
-                field_type = str # TODO
-                autocomplete_replacements[field_id] = partial(Autocompletes.entity_autocomplete, self)
-                if field.default is not None: default_value = field.default
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if field.selector.entity.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_entity_autocomplete, self, integration=field.selector.entity.integration, domain=field.selector.entity.domain)
+
               elif field.selector.select is not None: # ServiceFieldSelectorSelect 
                 field_options = field.selector.select.options # TODO: Implement autocomplete
                 if len(field_options) > 25:
                   field_type = str
                   autocomplete_replacements[field_id] = partial(Autocompletes.choice_autocomplete, self, all_choices=field_options)
-                  transformers[field_id] = lambda input: Autocompletes.require_choice(input, field_options)
+                  transformers[field_id] = partial(Autocompletes.require_choice, all_choices=field_options)
                 else:
                   field_type = Literal[*field_options]
                 if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
@@ -316,9 +344,8 @@ class Services(commands.Cog):
       )
 
       # Apply the autocompletes
-      if service.target is not None and service.target.entity is not None:
-        for i, func in autocomplete_replacements.items():
-          cmd._params[i].autocomplete = func
+      for i, func in autocomplete_replacements.items():
+        cmd._params[i].autocomplete = func
 
     except Exception as e:
       self.bot.logger.error("Failed to add service", domain.domain, service_id, type(e), e)
