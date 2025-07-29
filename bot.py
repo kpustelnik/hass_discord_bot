@@ -6,6 +6,8 @@ import discord
 from discord.ext import commands
 from haclient import CustomHAClient
 
+from enums.emojis import Emoji
+
 class HASSDiscordBot(commands.Bot):
   def __init__(self, logger: logging.Logger) -> None:
     super().__init__(
@@ -24,6 +26,8 @@ class HASSDiscordBot(commands.Bot):
 
     discord_guild_id_env = os.getenv("DISCORD_GUILD_ID")
     self.discord_main_guild_id = int(discord_guild_id_env) if discord_guild_id_env is not None else None
+    discord_special_role_id_env = os.getenv("DISCORD_SPECIAL_ROLE_ID")
+    self.discord_special_role_id = discord_special_role_id_env
 
     self.MAX_AUTOCOMPLETE_CHOICES = 25
     self.SIMILARITY_TOLERANCE = 0.2 # Only display items with score >= max_score * (1 - SIMILARITY_TOLERANCE)
@@ -58,3 +62,18 @@ class HASSDiscordBot(commands.Bot):
         self.logger.info(f"Synced {len(synced_guild)} guild commands")
     except Exception as e:
       self.logger.error("Sync error", e)
+  
+  async def check_user_role(self, interaction: discord.Interaction) -> bool:
+    if not interaction.guild:
+      await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed in guild.", ephemeral=True)
+      return False
+    
+    member = interaction.user
+    if not isinstance(member, discord.Member):
+      member = await interaction.guild.fetch_member(interaction.user.id)
+
+    if self.discord_special_role_id is not None and not any(role.id == self.discord_special_role_id for role in member.roles):
+      await interaction.response.send_message(f"{Emoji.ERROR} You need <@{self.discord_special_role_id}> role to run this command.", ephemeral=True)
+      return False
+
+    return True

@@ -29,8 +29,10 @@ class Labels(commands.Cog):
 
   @app_commands.autocomplete(label_id=Autocompletes.label_autocomplete)
   @app_commands.describe(label_id="HomeAssistant label identifier")
-  @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_label(self, interaction: discord.Interaction, label_id: str):
+    if not await self.bot.check_user_role(interaction):
+      return
+
     try:
       await interaction.response.defer()
 

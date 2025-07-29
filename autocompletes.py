@@ -130,7 +130,7 @@ class Autocompletes():
 
     # Filter entities not belonging to specified domain    
     if domain is not None:
-      checked_devices = filter(lambda x: domain in [get_domain_from_entity_id(entity_id) for entity_id in x.entities], checked_devices)
+      checked_devices = filter(lambda x: any(get_domain_from_entity_id(entity_id) == domain for entity_id in x.entities), checked_devices)
 
     target_tokens = tokenize(current_input)
     choice_list = [

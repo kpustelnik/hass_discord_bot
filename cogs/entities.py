@@ -29,8 +29,10 @@ class Entities(commands.Cog):
 
   @app_commands.autocomplete(entity_id=Autocompletes.entity_autocomplete)
   @app_commands.describe(entity_id="HomeAssistant entity identifier")
-  @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_entity(self, interaction: discord.Interaction, entity_id: str):
+    if not await self.bot.check_user_role(interaction):
+      return
+
     try:
       await interaction.response.defer()
 

@@ -28,8 +28,10 @@ class Areas(commands.Cog):
 
   @app_commands.autocomplete(area_id=Autocompletes.area_autocomplete)
   @app_commands.describe(area_id="HomeAssistant area identifier")
-  @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_area(self, interaction: discord.Interaction, area_id: str):
+    if not await self.bot.check_user_role(interaction):
+      return
+    
     try:
       await interaction.response.defer()
 

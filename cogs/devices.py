@@ -27,8 +27,10 @@ class Devices(commands.Cog):
 
   @app_commands.autocomplete(device_id=Autocompletes.device_autocomplete)
   @app_commands.describe(device_id="HomeAssistant device identifier")
-  @app_commands.checks.has_role(1398385337423626281) # TODO: Move to settings
   async def get_device(self, interaction: discord.Interaction, device_id: str):
+    if not await self.bot.check_user_role(interaction):
+      return
+
     try:
       await interaction.response.defer()
 

@@ -24,7 +24,6 @@ class Services(commands.Cog):
       ['light', 'turn.*']
     ]
 
-    # TODO: Add option to limit available services
     try:
       ha_domains: List[DomainModel] = self.bot.homeassistant_client.cache_custom_get_domains()
       for domain in ha_domains:
@@ -83,6 +82,9 @@ class Services(commands.Cog):
     transformers: Dict[str, Callable[[Any], Any]] = {}
     renames: Dict[str, str] = {}
     async def handler(interaction: discord.Interaction, **kwargs):
+      if not await self.bot.check_user_role(interaction):
+        return
+    
       await interaction.response.defer()
 
       kwargs.update(constants) # Apply the constants
