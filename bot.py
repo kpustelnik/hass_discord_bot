@@ -73,7 +73,7 @@ class HASSDiscordBot(commands.Bot):
       member = await interaction.guild.fetch_member(interaction.user.id)
 
     if self.discord_special_role_id is not None and not any(role.id == self.discord_special_role_id for role in member.roles):
-      await interaction.response.send_message(f"{Emoji.ERROR} You need <@{self.discord_special_role_id}> role to run this command.", ephemeral=True)
+      await interaction.response.send_message(f"{Emoji.ERROR} You need <@&{self.discord_special_role_id}> role to run this command.", ephemeral=True)
       return False
 
     return True
