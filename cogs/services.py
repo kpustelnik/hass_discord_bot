@@ -105,7 +105,7 @@ class Services(commands.Cog):
       )
 
       embed.add_field(
-        name=f'{Emoji.SUCCESS} Modified entities',
+        name=f'{Emoji.SUCCESS} Service action succeeded',
         value=shorten("\n".join([
           f"**{friendly_name if (friendly_name := self.bot.homeassistant_client.get_entity_friendlyname(entity)) is not None else "?"}** ({entity.entity_id})"
           for entity in changed_entities
@@ -137,6 +137,7 @@ class Services(commands.Cog):
     descriptions: Dict[str, str] = {}
     renames: Dict[str, str] = {}
     autocomplete_replacements: Dict[str, Any] = {}
+    all_params: Set[str] = set()
 
     if service.target is not None and service.target.entity is not None:
       params.append(
@@ -149,6 +150,7 @@ class Services(commands.Cog):
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(Autocompletes.area_device_entity_autocomplete, self) # Ugly solution but it works
+      all_params.add('service_action_target')
   # TODO: target.entity.
   # domain: Optional[List[str]] = None
   # supported_features: Optional[List[int]] = None # Bitset flags
@@ -250,6 +252,7 @@ class Services(commands.Cog):
                 raise Exception('Unknown selector')
               
               # Adjust the field name and description
+              all_params.add(field_id)
               if field.name is not None:
                 renames[field_id] = field.name
               
@@ -262,12 +265,18 @@ class Services(commands.Cog):
               if len(descriptions[field_id]) == 0: descriptions[field_id] = '-'
 
               # Add the parameter to function signature
-              params.append(inspect.Parameter(
-                name=field_id,
-                kind=inspect.Parameter.KEYWORD_ONLY,
-                annotation=Optional[field_type] if field.required == False else field_type,
-                default=default_value
-              ))
+              is_field_required = field.required == True
+              parameter_data = {
+                'name': field_id,
+                'kind': inspect.Parameter.KEYWORD_ONLY,
+                'annotation': Optional[field_type] if not is_field_required else field_type
+              }
+              if default_value is not None:
+                parameter_data['default'] = default_value
+              elif not is_field_required:
+                parameter_data['default'] = None
+
+              params.append(inspect.Parameter(**parameter_data))
 
       # Adjust the handler function signature
       handler.__signature__ = inspect.Signature(params)
@@ -280,8 +289,8 @@ class Services(commands.Cog):
       set_already_renamed: Set[str] = set()
       final_renames = {}
       for i, v in renames.items():
-        if i != v:
-          v = shorten_argument_rename(v)
+        v = shorten_argument_rename(v)
+        if i != v and v not in all_params:
           if v not in set_already_renamed:
             set_already_renamed.add(v)
             final_renames[i] = v
