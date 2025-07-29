@@ -149,12 +149,14 @@ class Services(commands.Cog):
       )
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
-      autocomplete_replacements["service_action_target"] = partial(Autocompletes.area_device_entity_autocomplete, self) # Ugly solution but it works
+      autocomplete_replacements["service_action_target"] = partial(  # Ugly solution but it works
+        Autocompletes.area_device_entity_autocomplete,
+        self,
+        domain=service.target.entity.domain,
+        supported_features=service.target.entity.supported_features,
+        integration=service.target.entity.integration
+      )
       all_params.add('service_action_target')
-  # TODO: target.entity.
-  # domain: Optional[List[str]] = None
-  # supported_features: Optional[List[int]] = None # Bitset flags
-  # integration: Optional[str] = None
 
     try:
       if service.fields is not None:

@@ -1,8 +1,8 @@
 import discord
 from discord import app_commands
-from typing import List
+from typing import List, Optional, Set
 
-from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name
+from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
@@ -13,7 +13,8 @@ class Autocompletes():
       cog,
       current_input: str,
       prefix: str = '',
-      display_prefix: str = ''
+      display_prefix: str = '',
+      matching_areas: Set[str] | None = None
   ) -> List[app_commands.Choice[str]]:
     try:
       homeassistant_areas: List[AreaModel] = cog.bot.homeassistant_client.cache_custom_get_areas()
@@ -22,6 +23,8 @@ class Autocompletes():
     except Exception as e:
       cog.bot.logger.error("Failed to fetch areas", e)
       return []
+      
+    checked_areas = filter(lambda x: x.id in matching_areas, homeassistant_areas) if matching_areas is not None else homeassistant_areas
       
     target_tokens = tokenize(current_input)
     choice_list = [
@@ -35,7 +38,7 @@ class Autocompletes():
           value=f'{prefix}{cog.bot.homeassistant_client.escape_id(area.id)}'
         )
       )
-      for area in homeassistant_areas
+      for area in checked_areas
     ]
     return choice_list
     
@@ -55,7 +58,8 @@ class Autocompletes():
       cog,
       current_input: str,
       prefix: str = '',
-      display_prefix: str = ''
+      display_prefix: str = '',
+      matching_devices: Set[str] | None = None
   ) -> List[app_commands.Choice[str]]:
     try:
       homeassistant_devices: List[DeviceModel] = cog.bot.homeassistant_client.cache_custom_get_devices()
@@ -65,6 +69,8 @@ class Autocompletes():
       cog.bot.logger.error("Failed to fetch devices", e)
       return []
       
+    checked_devices = filter(lambda x: x.id in matching_devices, homeassistant_devices) if matching_devices is not None else homeassistant_devices
+
     target_tokens = tokenize(current_input)
     choice_list = [
       (
@@ -77,7 +83,7 @@ class Autocompletes():
           value=f'{prefix}{cog.bot.homeassistant_client.escape_id(device.id)}'
         )
       )
-      for device in homeassistant_devices
+      for device in checked_devices
     ]
     return choice_list
     
@@ -97,7 +103,8 @@ class Autocompletes():
       cog,
       current_input: str,
       prefix: str = '',
-      display_prefix: str = ''
+      display_prefix: str = '',
+      matching_entities: Set[str] | None = None
   ) -> List[app_commands.Choice[str]]:
     try:
       homeassistant_entities: List[EntityModel] = cog.bot.homeassistant_client.cache_custom_get_entities()
@@ -106,6 +113,8 @@ class Autocompletes():
     except Exception as e:
       cog.bot.logger.error("Failed to fetch entities", e)
       return []
+    
+    checked_entities = filter(lambda x: x.entity_id in matching_entities, homeassistant_entities) if matching_entities is not None else homeassistant_entities
       
     target_tokens = tokenize(current_input)
     choice_list = [
@@ -119,7 +128,7 @@ class Autocompletes():
           value=f'{prefix}{cog.bot.homeassistant_client.escape_id(entity.entity_id)}'
         )
       )
-      for entity in homeassistant_entities
+      for entity in checked_entities
     ]
     return choice_list
 
@@ -138,11 +147,18 @@ class Autocompletes():
   async def area_device_entity_autocomplete(
       cog,
       interaction: discord.Interaction,
-      current_input: str
+      current_input: str,
+      domain: Optional[List[str]] = None,
+      supported_features: Optional[List[int] | int] = None,
+      integration: Optional[str] = None
   ) -> List[app_commands.Choice[str]]:
-    area_choice_list = await Autocompletes.get_area_autocomplete_choices(cog, current_input, prefix='AREA$', display_prefix='Area: ')
-    device_choice_list = await Autocompletes.get_device_autocomplete_choices(cog, current_input, prefix='DEVICE$', display_prefix='Device: ')
-    entity_choice_list = await Autocompletes.get_entity_autocomplete_choices(cog, current_input, prefix='ENTITY$', display_prefix='Entity: ')
+    matching_entities: Set[str] | None = Autocompletes.get_matching_entities(cog, domain=domain, supported_features=supported_features, integration=integration)
+    matching_devices: Set[str] | None = Autocompletes.get_matching_devices(cog, matching_entities=matching_entities)
+    matching_areas: Set[str] | None = Autocompletes.get_matching_areas(cog, matching_entities=matching_entities, matching_devices=matching_devices)
+
+    area_choice_list = await Autocompletes.get_area_autocomplete_choices(cog, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas)
+    device_choice_list = await Autocompletes.get_device_autocomplete_choices(cog, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices)
+    entity_choice_list = await Autocompletes.get_entity_autocomplete_choices(cog, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
     choice_list = area_choice_list + device_choice_list + entity_choice_list
     choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -172,8 +188,105 @@ class Autocompletes():
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
     return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
   
+  # Others
+  @staticmethod
   def require_choice(input: str, all_choices: List[str]) -> str:
     if input in all_choices:
       return input
     else:
       raise Exception("Incorrect choice")
+    
+  # Area, devices, entities matching
+  def get_matching_areas(
+      cog,
+      matching_entities: Set[str] | None,
+      matching_devices: Set[str] | None
+  ) -> Set[str] | None:
+    if matching_entities is None and matching_devices is None:
+      return None
+    
+    try:
+      homeassistant_areas: List[AreaModel] = cog.bot.homeassistant_client.cache_custom_get_areas()
+      if homeassistant_areas is None:
+        raise Exception("No areas were returned")
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch areas", e)
+      return []
+    
+    matching_areas = set()
+    for area in homeassistant_areas:
+      if matching_devices is not None and len(set(area.devices).intersection(matching_devices)) != 0:
+        matching_areas.add(area)
+      elif matching_entities is not None and len(set(area.entities).intersection(matching_entities)) != 0:
+        matching_areas.add(area)
+    
+    return matching_areas
+  
+
+  def get_matching_devices(
+      cog,
+      matching_entities: Set[str] | None
+  ) -> Set[str] | None:
+    if matching_entities is None:
+      return None
+    
+    try:
+      homeassistant_devices: List[DeviceModel] = cog.bot.homeassistant_client.cache_custom_get_devices()
+      if homeassistant_devices is None:
+        raise Exception("No devices were returned")
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch devices", e)
+      return []
+    
+    return set([
+      device.id
+      for device in filter(lambda x: len(set(x.entities).intersection(matching_entities)) != 0, homeassistant_devices)
+    ])
+    
+
+  def get_matching_entities(
+      cog,
+      domain: Optional[List[str]] = None,
+      supported_features: Optional[List[int] | int] = None,
+      integration: Optional[str] = None
+  ) -> Set[str] | None:
+    if domain is None and supported_features is None and integration is None:
+      return None # Returns None if all entities are passing
+    
+    try:
+      homeassistant_entities: List[EntityModel] = cog.bot.homeassistant_client.cache_custom_get_entities()
+      if homeassistant_entities is None:
+        raise Exception("No entities were returned")
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch entities", e)
+      return []
+    
+    passing_entities: Set[str] = set()
+    for entity in homeassistant_entities:
+      entity_domain: str | None = get_domain_from_entity_id(entity_id=entity.entity_id)
+      if domain is not None:
+        if entity_domain is None or entity_domain not in domain:
+          continue # Condition not matching, skip
+      
+      if supported_features is not None:
+        entity_supported_features = entity.attributes.get('supported_features')
+        if entity_supported_features is not None and isinstance(entity_supported_features, int):
+          any_matching = False
+          if isinstance(supported_features, int):
+            any_matching = supported_features & entity_supported_features != 0
+          elif isinstance(supported_features, list):
+            for feature in supported_features:
+              if feature & entity_supported_features != 0:
+                any_matching = True
+                break
+          
+          if not any_matching:
+            continue # Required feature is not supported, skip
+        else:
+          continue # No supported features, skip
+      
+      if integration is not None:
+        pass # TODO: Add integration fetching
+
+      passing_entities.add(entity.entity_id)
+    return passing_entities

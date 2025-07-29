@@ -63,7 +63,7 @@ class ServiceFieldSelector(BaseModel):
   constant: Optional[ServiceFieldSelectorConstant] = None
 
 class ServiceFieldFilter(BaseModel):
-  supported_features: Optional[List[int]] = None # Bitset (any needs to be supported)
+  supported_features: Optional[List[int] | int] = None # Bitset (any needs to be supported)
   attribute: Optional[Dict[str, List[str] | str]] = None
 
 class ServiceField(BaseModel):
@@ -86,7 +86,7 @@ class ServiceTargetDevice(BaseModel):
 
 class ServiceTargetEntity(BaseModel):
   domain: Optional[List[str]] = None
-  supported_features: Optional[List[int]] = None # Bitset flags
+  supported_features: Optional[List[int] | int] = None # Bitset flags
   integration: Optional[str] = None
   # `area_id``, `device_id``, `entity_id``, label can be passed as a target
 

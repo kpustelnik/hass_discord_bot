@@ -3,6 +3,12 @@ from Levenshtein import distance as levenshtein_distance
 from typing import TypeVar, Callable, Iterable
 
 T = TypeVar('T')
+
+def get_domain_from_entity_id(entity_id: str) -> str | None:
+  pos = entity_id.find('.')
+  if pos == -1:
+    return None
+  return entity_id[:pos]
   
 def add_param(url: str, **params) -> str:
     """Add query parameters to url"""
