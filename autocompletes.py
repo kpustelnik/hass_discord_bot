@@ -216,9 +216,9 @@ class Autocompletes():
     matching_areas = set()
     for area in homeassistant_areas:
       if matching_devices is not None and len(set(area.devices).intersection(matching_devices)) != 0:
-        matching_areas.add(area)
+        matching_areas.add(area.id)
       elif matching_entities is not None and len(set(area.entities).intersection(matching_entities)) != 0:
-        matching_areas.add(area)
+        matching_areas.add(area.id)
     
     return matching_areas
   
