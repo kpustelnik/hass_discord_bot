@@ -3,3 +3,4 @@ class HomeAssistantCacheId:
   DOMAINS = "DOMAINS"
   DEVICES = "DEVICES"
   AREAS = "AREAS"
+  LABELS = "LABELS"

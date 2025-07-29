@@ -4,12 +4,14 @@ from pydantic import TypeAdapter
 from typing import List, Optional, TypeVar, Callable, Any, Tuple
 from helpers import find
 import re
+import json
 
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
 from models.ServiceModel import DomainModel
 from models.AreaModel import AreaModel
 from models.EntityModel import EntityModel
+from models.LabelModel import LabelModel
 
 T = TypeVar('T')
 
@@ -84,7 +86,66 @@ class CustomHAClient(HAClient):
       return None
 
     return TypeAdapter(AreaModel).validate_json(fetched_area_json)
+  
+  # Integrations
+  def custom_get_integration_entities(self, integration: str) -> List[str]:
+    return json.loads(self.get_rendered_template(
+    f"{"{%"}- set integration = '{self.escape_id(integration)}' {"%}"}"     
+    +
+    '''
+      {{ integration_entities(integration) | tojson }}                     
+    '''))
 
+  # Labels
+  def custom_get_labels(self) -> List[LabelModel]:
+    fetched_labels_json: str = self.get_rendered_template('''
+    {%- set ns = namespace(labels = []) %}
+    {%- for label_id in labels() %}
+      {%- set areas = label_areas(label_id) | list %}
+      {%- set devices = label_devices(label_id) | list %}
+      {%- set entities = label_entities(label_id) | list %}
+      {%- set ns.labels = ns.labels + [
+        {
+          "id": label_id,
+          "name": label_name(label_id),
+          "description": label_description(label_id),
+          "areas": areas,
+          "devices": devices,
+          "entities": entities
+        }
+      ] %}
+    {%- endfor %}
+    {{ ns.labels | tojson }}
+    ''')
+
+    return TypeAdapter(List[LabelModel]).validate_json(fetched_labels_json)
+  
+  def cache_custom_get_labels(self, bypass=False) -> List[LabelModel]:
+    return self.cache_data(lambda: self.custom_get_labels(), HomeAssistantCacheId.LABELS, bypass=bypass)
+
+  def custom_get_label(self, label_id: str) -> Optional[LabelModel]:
+    fetched_label_json: str = self.get_rendered_template(
+    f"{"{%"}- set label_id = '{self.escape_id(label_id)}' {"%}"}"     
+    +
+    '''
+    {%- set areas = label_areas(label_id) | list %}
+    {%- set devices = label_devices(label_id) | list %}
+    {%- set entities = label_entities(label_id) | list %}
+    {{ {
+      "id": label_id,
+      "name": label_name(label_id),
+      "description": label_description(label_id),
+      "areas": areas,
+      "devices": devices,
+      "entities": entities
+    } | tojson }}
+    ''')
+
+    if fetched_label_json == '':
+      return None
+
+    return TypeAdapter(LabelModel).validate_json(fetched_label_json)
+  
   # Devices
   def custom_get_devices(self) -> List[DeviceModel]:
     fetched_devices_json: str = self.get_rendered_template('''
