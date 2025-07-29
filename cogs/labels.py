@@ -73,6 +73,8 @@ class Labels(commands.Cog):
             areas.append(f'**{area.name}** ({area.id})')
           else:
             areas.append(str(area_id))
+        
+        embed.add_field(name="Areas", value=shorten_embed_value("\n".join(areas)))
 
       # Devices parsing
       if len(label_data.devices) > 0:
