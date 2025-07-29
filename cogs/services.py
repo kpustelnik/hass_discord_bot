@@ -53,10 +53,14 @@ class Services(commands.Cog):
       await interaction.response.defer()
 
       # Apply transformers
-      final_kwargs = {
-        name: transformers[name](value) if name in transformers else value
-        for name, value in kwargs.items() if value is not None
-      }
+      try:
+        final_kwargs = {
+          name: transformers[name](value) if name in transformers else value
+          for name, value in kwargs.items() if value is not None
+        }
+      except Exception as e:
+        await interaction.followup.send(f'{Emoji.ERROR} {str(e)}')
+        return
 
       # Parse the target if available
       if 'service_action_target' in final_kwargs:
@@ -142,8 +146,13 @@ class Services(commands.Cog):
                 autocomplete_replacements[field_id] = partial(Autocompletes.entity_autocomplete, self)
                 if field.default is not None: default_value = field.default
               elif field.selector.select is not None: # ServiceFieldSelectorSelect 
-                field_options = field.selector.select.options[:25] # TODO: Implement autocomplete
-                field_type = Literal[*field_options]
+                field_options = field.selector.select.options # TODO: Implement autocomplete
+                if len(field_options) > 25:
+                  field_type = str
+                  autocomplete_replacements[field_id] = partial(Autocompletes.choice_autocomplete, self, all_choices=field_options)
+                  transformers[field_id] = lambda input: Autocompletes.require_choice(input, field_options)
+                else:
+                  field_type = Literal[*field_options]
                 if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
               elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
                 field_type = bool

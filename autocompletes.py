@@ -148,3 +148,32 @@ class Autocompletes():
 
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
     return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  
+  # Custom
+  async def choice_autocomplete(
+      cog,
+      interaction: discord.Interaction,
+      current_input: str,
+      all_choices: List[str]
+  ) -> List[app_commands.Choice[str]]:
+    target_tokens = tokenize(current_input)
+    choice_list = [
+      (
+        fuzzy_keyword_match_with_order(tokenize(str(choice)), target_tokens),
+        app_commands.Choice(
+          name=shorten_option_name(str(choice)),
+          value=str(choice)
+        )
+      )
+      for choice in all_choices
+    ]
+    choice_list.sort(key=lambda x: x[0], reverse=True)
+
+    min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+    return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  
+  def require_choice(input: str, all_choices: List[str]) -> str:
+    if input in all_choices:
+      return input
+    else:
+      raise Exception("Incorrect choice")
