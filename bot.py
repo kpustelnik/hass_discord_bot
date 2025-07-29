@@ -27,7 +27,7 @@ class HASSDiscordBot(commands.Bot):
     discord_guild_id_env = os.getenv("DISCORD_GUILD_ID")
     self.discord_main_guild_id = int(discord_guild_id_env) if discord_guild_id_env is not None else None
     discord_special_role_id_env = os.getenv("DISCORD_SPECIAL_ROLE_ID")
-    self.discord_special_role_id = discord_special_role_id_env
+    self.discord_special_role_id = int(discord_special_role_id_env) if discord_special_role_id_env is not None else None
 
     self.MAX_AUTOCOMPLETE_CHOICES = 25
     self.SIMILARITY_TOLERANCE = 0.2 # Only display items with score >= max_score * (1 - SIMILARITY_TOLERANCE)
