@@ -19,6 +19,7 @@ class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
+    # TODO: Add option to limit available services
     try:
       ha_domains: List[DomainModel] = self.bot.homeassistant_client.cache_custom_get_domains()
       for domain in ha_domains:
@@ -46,10 +47,16 @@ class Services(commands.Cog):
             raise ValueError("Incorrect input")
         
   @staticmethod
-  def transform_multiple(src: str, checker: Callable[[Any], bool]) -> List[Any]:
+  def transform_multiple(src: str, checker: Callable[[Any], bool], minlen: Optional[int] = None, maxlen:Optional[int] = None) -> List[Any]:
     parsed_object = Services.transform_object(src)
     if not isinstance(parsed_object, list):
       raise ValueError("Input is not a list")
+    
+    if maxlen is not None and len(parsed_object) > maxlen:
+      raise ValueError("Too many values")
+    if minlen is not None and len(parsed_object) < minlen:
+      raise ValueError("Too few values")
+    
     for value in parsed_object:
       if not checker(value):
         raise ValueError("Incorrect input elements")
@@ -57,10 +64,13 @@ class Services(commands.Cog):
   
   def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
+    constants: Dict[str, Any] = {}
     transformers: Dict[str, Callable[[Any], Any]] = {}
     renames: Dict[str, str] = {}
     async def handler(interaction: discord.Interaction, **kwargs):
       await interaction.response.defer()
+
+      kwargs.update(constants) # Apply the constants
 
       # Apply transformers
       try:
@@ -191,6 +201,7 @@ class Services(commands.Cog):
               if field.selector is None: # Ignore fields that wouldn't be visible in DevTools UI Action runner
                 continue
 
+              is_hidden = False
               field_type = None
               default_value = None
               if field.selector.text is not None: # ServiceFieldSelectorText
@@ -212,12 +223,15 @@ class Services(commands.Cog):
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
 
               elif field.selector.number is not None: # ServiceFieldSelectorNumber
-                subtype = int if field.selector.number.step == 1 else float
+                subtype = float if field.selector.number is not None and isinstance(field.selector.number, int) and field.selector.number.step != 1 else int
                 if field.selector.number.min is not None or field.selector.number.max is not None:
-                  field_type = app_commands.Range[subtype, field.selector.number.min, field.selector.number.max]
+                  val_max = field.selector.number.max
+                  if val_max is not None and val_max > 9007199254740991:
+                    val_max = 9007199254740991
+                  field_type = app_commands.Range[subtype, field.selector.number.min, val_max]
                 else:
                   field_type = subtype
-                if field.default is not None: default_value = float(field.default)
+                if field.default is not None: default_value = subtype(field.default)
 
               elif field.selector.duration is not None: # ServiceFieldSelectorText
                 field_type = str
@@ -234,88 +248,138 @@ class Services(commands.Cog):
                   autocomplete_replacements[field_id] = partial(Autocompletes.filtered_entity_autocomplete, self, integration=field.selector.entity.integration, domain=field.selector.entity.domain)
 
               elif field.selector.select is not None: # ServiceFieldSelectorSelect 
-                field_options = field.selector.select.options # TODO: Implement autocomplete
-                if len(field_options) > 25:
+                field_options = field.selector.select.options
+                if field.selector.select.multiple == True:
+                  if field.default is not None: default_value = str(field.default)
                   field_type = str
-                  autocomplete_replacements[field_id] = partial(Autocompletes.choice_autocomplete, self, all_choices=field_options)
-                  transformers[field_id] = partial(Autocompletes.require_choice, all_choices=field_options)
+                  transformers[field_id] = partial(lambda c_field_options, input: Services.transform_multiple(
+                    input,
+                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and Autocompletes.require_choice(input, all_choices=c_field_options)
+                  ), field_options)
                 else:
-                  field_type = Literal[*field_options]
-                if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
+                  if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
+                  if len(field_options) > 25: # Too many options, use autocomplete
+                    field_type = str
+                    autocomplete_replacements[field_id] = partial(Autocompletes.choice_autocomplete, self, all_choices=field_options)
+                  else: # Use literal type (choices implemented on Discord)
+                    field_type = Literal[*field_options]
+                  transformers[field_id] = partial(Autocompletes.require_choice, all_choices=field_options) # Always confirm if the choice is valid
+
               elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
                 field_type = bool
                 if field.default is not None: default_value = bool(field.default)
+
               elif field.selector.theme is not None: # ServiceFieldSelectorTheme
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+
               elif field.selector.color_temp is not None: # ServiceFieldSelectorNumber
-                field_type = float
-                if field.default is not None: default_value = float(field.default)
+                subtype = float if field.selector.color_temp is not None and isinstance(field.selector.color_temp, int) and field.selector.color_temp.step != 1 else int
+                if field.selector.color_temp.min is not None or field.selector.color_temp.max is not None:
+                  val_max = field.selector.color_temp.max
+                  if val_max is not None and val_max > 9007199254740991:
+                    val_max = 9007199254740991
+                  field_type = app_commands.Range[subtype, field.selector.color_temp.min, val_max]
+                else:
+                  field_type = subtype
+                if field.default is not None: default_value = subtype(field.default)
+
               elif field.selector.datetime is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.datetime.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  
               elif field.selector.time is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.time.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.date is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.date.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.statistic is not None: # ServiceFieldSelectorEntity
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                autocomplete_replacements[field_id] = partial(Autocompletes.entity_autocomplete, self)
+                if field.selector.statistic.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_entity_autocomplete, self, integration=field.selector.statistic.integration, domain=field.selector.statistic.domain)
+
               elif field.selector.object is not None: # ServiceFieldSelectorObject
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 transformers[field_id] = self.transform_object
-              elif field.selector.template is not None: #ServiceFieldSelectorText
+                
+              elif field.selector.template is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.template.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  
               elif field.selector.color_rgb is not None: # ServiceFieldSelectorObject
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                transformers[field_id] = self.transform_object
+                transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, int) and x >= 0 and x <= 255, minlen=3, maxlen=3)
+
               elif field.selector.device is not None: # ServiceFieldSelectorDevice
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                autocomplete_replacements[field_id] = partial(Autocompletes.device_autocomplete, self)
+                if field.selector.device.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_device_autocomplete, self, integration=field.selector.device.integration, domain=field.selector.device.domain)
+
+
               elif field.selector.icon is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
+                if field.selector.icon.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+
               elif field.selector.constant is not None: # ServiceFieldSelectorConstant
                 field_type = type(field.selector.constant.value)
                 if field.default is not None: default_value = field.default
-                # TODO: Block editing?
+                is_hidden = True
+                constants[field_id] = field.selector.constant.value
+
               else:
                 self.bot.logger.error("Unknown selector", domain.domain, service_id, field_id)
                 raise Exception('Unknown selector')
-              
-              # Adjust the field name and description
-              all_params.add(field_id)
-              if field.name is not None:
-                renames[field_id] = field.name
-              
-              field_description_components: List[str] = []
-              if field.example is not None:
-                field_description_components.append(f'(eg. {str(field.example)})')
-              if field.description is not None:
-                field_description_components.append(str(field.description))
-              descriptions[field_id] = " - ".join(field_description_components)
-              if len(descriptions[field_id]) == 0: descriptions[field_id] = '-'
 
-              # Add the parameter to function signature
-              is_field_required = field.required == True
-              parameter_data = {
-                'name': field_id,
-                'kind': inspect.Parameter.KEYWORD_ONLY,
-                'annotation': Optional[field_type] if not is_field_required else field_type
-              }
-              if default_value is not None:
-                parameter_data['default'] = default_value
-              elif not is_field_required:
-                parameter_data['default'] = None
+              if not is_hidden:
+                # Add the parameter to function signature
+                is_field_required = field.required == True
 
-              params.append(inspect.Parameter(**parameter_data))
+                # Adjust the field name and description
+                all_params.add(field_id)
+                if field.name is not None:
+                  renames[field_id] = field.name
+                
+                field_description_components: List[str] = []
+                if field.example is not None:
+                  field_description_components.append(f'(eg. {str(field.example)})')
+                if field.description is not None:
+                  field_description_components.append(str(field.description))
+                descriptions[field_id] = " - ".join(field_description_components)
+                if len(descriptions[field_id]) == 0: descriptions[field_id] = '-'
+
+                parameter_data = {
+                  'name': field_id,
+                  'kind': inspect.Parameter.KEYWORD_ONLY,
+                  'annotation': Optional[field_type] if not is_field_required else field_type
+                }
+
+                if default_value is not None:
+                  parameter_data['default'] = default_value
+                elif not is_field_required:
+                  parameter_data['default'] = None
+
+                params.append(inspect.Parameter(**parameter_data))
 
       # Adjust the handler function signature
       handler.__signature__ = inspect.Signature(params)

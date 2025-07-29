@@ -105,7 +105,9 @@ class Autocompletes():
       current_input: str,
       prefix: str = '',
       display_prefix: str = '',
-      matching_devices: Set[str] | None = None
+      matching_devices: Set[str] | None = None,
+      integration: Optional[str] = None,
+      domain: Optional[str] = None
   ) -> List[app_commands.Choice[str]]:
     try:
       homeassistant_devices: List[DeviceModel] = cog.bot.homeassistant_client.cache_custom_get_devices()
@@ -116,6 +118,19 @@ class Autocompletes():
       return []
       
     checked_devices = filter(lambda x: x.id in matching_devices, homeassistant_devices) if matching_devices is not None else homeassistant_devices
+    
+    # Filter entities not belonging to specified integration
+    if integration is not None:
+      try:
+        integration_entities: Set[str] = set(cog.bot.homeassistant_client.custom_get_integration_entities(integration))
+      except Exception as e:
+        cog.bot.logger.error("Failed to fetch integration entities", type(e), e)
+        return []
+      checked_devices = filter(lambda x: integration_entities.intersection(set(x.entities)), checked_devices)
+
+    # Filter entities not belonging to specified domain    
+    if domain is not None:
+      checked_devices = filter(lambda x: domain in [get_domain_from_entity_id(entity_id) for entity_id in x.entities], checked_devices)
 
     target_tokens = tokenize(current_input)
     choice_list = [
@@ -139,6 +154,19 @@ class Autocompletes():
       current_input: str
   ) -> List[app_commands.Choice[str]]:
     choice_list: List[app_commands.Choice[str]] = await Autocompletes.get_device_autocomplete_choices(cog, current_input)
+    choice_list.sort(key=lambda x: x[0], reverse=True)
+
+    min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+    return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+    
+  async def filtered_device_autocomplete(
+      cog,
+      interaction: discord.Interaction,
+      current_input: str,
+      integration: Optional[str] = None,
+      domain: Optional[str] = None
+  ) -> List[app_commands.Choice[str]]:
+    choice_list: List[app_commands.Choice[str]] = await Autocompletes.get_device_autocomplete_choices(cog, current_input, integration=integration, domain=domain)
     choice_list.sort(key=lambda x: x[0], reverse=True)
 
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
