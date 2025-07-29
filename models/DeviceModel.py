@@ -7,7 +7,7 @@ class DeviceModel(BaseModel):
   name: str
   name_by_user: Optional[str] = None
   entities: List[str]
-  menufacturer: Optional[str] = None
+  manufacturer: Optional[str] = None
   model: Optional[str] = None
   model_id: Optional[str] = None
   serial_number: Optional[str] = None

@@ -72,7 +72,7 @@ class Devices(commands.Cog):
         value="\n".join([
           f'**{key}**: {value}'
           for key, value in ({
-            'menufacturer': device_data.menufacturer,
+            'manufacturer': device_data.manufacturer,
             'model': device_data.model,
             'model_id': device_data.model_id,
             'serial_number': device_data.serial_number,
