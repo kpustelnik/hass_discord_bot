@@ -7,6 +7,7 @@ import json
 import inspect
 from helpers import shorten, shorten_argument_rename
 import datetime
+import re
 
 from bot import HASSDiscordBot
 from autocompletes import Autocompletes
@@ -19,6 +20,10 @@ class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
+    self.WHITELISTED_SERVICES = [
+      ['light', 'turn.*']
+    ]
+
     # TODO: Add option to limit available services
     try:
       ha_domains: List[DomainModel] = self.bot.homeassistant_client.cache_custom_get_domains()
@@ -29,12 +34,22 @@ class Services(commands.Cog):
           guild_ids=[self.bot.discord_main_guild_id] if self.bot.discord_main_guild_id is not None else None
         )
 
+        any_added = False
         for service_id, service in domain.services.items():
-          self.create_service_command(group, domain, service_id, service)
+          if self.check_whitelist(domain.domain, service_id):
+            any_added = True
+            self.create_service_command(group, domain, service_id, service)
 
-        self.bot.tree.add_command(group)
+        if any_added:
+          self.bot.tree.add_command(group)
     except Exception as e:
       self.bot.logger.error("Failed to fetch domains and create service action commands", type(e), e)
+
+  def check_whitelist(self, domain_id, service_id) -> bool:
+    for tmpl_domain_id, tmpl_service_id in self.WHITELISTED_SERVICES:
+      if re.match(tmpl_domain_id, domain_id) is not None and re.match(tmpl_service_id, service_id):
+        return True
+    return False
 
   @staticmethod
   def transform_object(src: str) -> Any:
