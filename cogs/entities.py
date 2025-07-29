@@ -60,7 +60,8 @@ class Entities(commands.Cog):
 
       escaped_entity_id = self.bot.homeassistant_client.escape_id(entity_data.entity_id)
       friendly_name = self.bot.homeassistant_client.get_entity_friendlyname(entity_data)
-      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), entity_id=escaped_entity_id)
+      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, "history"), entity_id=escaped_entity_id)
+      logbook_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, "logbook"), entity_id=escaped_entity_id)
 
       embed = discord.Embed(
         title=f"{friendly_name if friendly_name is not None else "?"}",
@@ -97,6 +98,7 @@ class Entities(commands.Cog):
 
       view = discord.ui.View()
       view.add_item(discord.ui.Button(label="Entity history", url=history_url))
+      view.add_item(discord.ui.Button(label="Entity logbook", url=logbook_url))
 
       await interaction.followup.send(embed=embed, view=view)
     except Exception as e:

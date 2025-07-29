@@ -90,11 +90,12 @@ class CustomHAClient(HAClient):
   # Integrations
   def custom_get_integration_entities(self, integration: str) -> List[str]:
     return json.loads(self.get_rendered_template(
-    f"{"{%"}- set integration = '{self.escape_id(integration)}' {"%}"}"     
-    +
-    '''
-      {{ integration_entities(integration) | tojson }}                     
-    '''))
+      f"{"{%"}- set integration = '{self.escape_id(integration)}' {"%}"}"     
+      +
+      '''
+        {{ integration_entities(integration) | tojson }}                     
+      '''
+    ))
 
   # Labels
   def custom_get_labels(self) -> List[LabelModel]:

@@ -15,8 +15,6 @@ from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldCollection, ServiceField
 from homeassistant_api.errors import RequestError
 
-# TODO: Parse object with yaml, and then json
-
 class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
@@ -50,6 +48,7 @@ class Services(commands.Cog):
   def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
     transformers: Dict[str, Callable[[Any], Any]] = {}
+    renames: Dict[str, str] = {}
     async def handler(interaction: discord.Interaction, **kwargs):
       await interaction.response.defer()
 
@@ -75,6 +74,8 @@ class Services(commands.Cog):
             final_kwargs['device_id'] = s[len('DEVICE$'):]
           case s if s.startswith('ENTITY$'):
             final_kwargs['entity_id'] = s[len('ENTITY$'):]
+          case s if s.startswith('LABEL$'):
+            final_kwargs['label_id'] = s[len('LABEL$'):]
 
       # Send the request
       try:
@@ -99,18 +100,27 @@ class Services(commands.Cog):
       # Create embed
       embed = discord.Embed(
         title=f"{domain.domain} > {service.name} execution",
-        description='',
+        description=f'{Emoji.SUCCESS} Service action succeeded',
         color=discord.Colour.default(),
         timestamp=datetime.datetime.now()
       )
 
-      embed.add_field(
-        name=f'{Emoji.SUCCESS} Service action succeeded',
-        value=shorten("\n".join([
-          f"**{friendly_name if (friendly_name := self.bot.homeassistant_client.get_entity_friendlyname(entity)) is not None else "?"}** ({entity.entity_id})"
-          for entity in changed_entities
-        ]), 1024)
-      )
+      for i, v in kwargs.items():
+        if v is not None:
+          id = renames[i] if i in renames else i
+          embed.add_field(
+            name=str(id),
+            value=str(v)
+          )
+
+      if len(changed_entities) > 0:
+        embed.add_field(
+          name=f'Changed entities',
+          value=shorten("\n".join([
+            f"**{friendly_name if (friendly_name := self.bot.homeassistant_client.get_entity_friendlyname(entity)) is not None else "?"}** ({entity.entity_id})"
+            for entity in changed_entities
+          ]), 1024)
+        )
 
       try:
         content = None
@@ -135,7 +145,6 @@ class Services(commands.Cog):
         )
     ]
     descriptions: Dict[str, str] = {}
-    renames: Dict[str, str] = {}
     autocomplete_replacements: Dict[str, Any] = {}
     all_params: Set[str] = set()
 
@@ -150,7 +159,7 @@ class Services(commands.Cog):
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(  # Ugly solution but it works
-        Autocompletes.area_device_entity_autocomplete,
+        Autocompletes.label_area_device_entity_autocomplete,
         self,
         domain=service.target.entity.domain,
         supported_features=service.target.entity.supported_features,
@@ -289,7 +298,7 @@ class Services(commands.Cog):
       
       # Deduplicate renames
       set_already_renamed: Set[str] = set()
-      final_renames = {}
+      final_renames: Dict[str, str] = {}
       for i, v in renames.items():
         v = shorten_argument_rename(v)
         if i != v and v not in all_params:

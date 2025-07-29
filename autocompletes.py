@@ -6,8 +6,54 @@ from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_nam
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
+from models.LabelModel import LabelModel
 
 class Autocompletes():
+  # Labels
+  async def get_label_autocomplete_choices(
+      cog,
+      current_input: str,
+      prefix: str = '',
+      display_prefix: str = '',
+      matching_labels: Set[str] | None = None
+  ) -> List[app_commands.Choice[str]]:
+    try:
+      homeassistant_labels: List[LabelModel] = cog.bot.homeassistant_client.cache_custom_get_labels()
+      if homeassistant_labels is None:
+        raise Exception("No labels were returned")
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch labels", e)
+      return []
+      
+    checked_labels = filter(lambda x: x.id in matching_labels, homeassistant_labels) if matching_labels is not None else homeassistant_labels
+      
+    target_tokens = tokenize(current_input)
+    choice_list = [
+      (
+        max(
+          fuzzy_keyword_match_with_order(tokenize(label.id), target_tokens),
+          fuzzy_keyword_match_with_order(tokenize(label.name), target_tokens)
+        ),
+        app_commands.Choice(
+          name=shorten_option_name(f"{display_prefix}{label.name} ({label.id})"),
+          value=f'{prefix}{cog.bot.homeassistant_client.escape_id(label.id)}'
+        )
+      )
+      for label in checked_labels
+    ]
+    return choice_list
+    
+  async def label_autocomplete(
+      cog,
+      interaction: discord.Interaction,
+      current_input: str
+  ) -> List[app_commands.Choice[str]]:
+    choice_list: List[app_commands.Choice[str]] = await Autocompletes.get_label_autocomplete_choices(cog, current_input)
+    choice_list.sort(key=lambda x: x[0], reverse=True)
+
+    min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+    return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  
   # Areas
   async def get_area_autocomplete_choices(
       cog,
@@ -144,7 +190,7 @@ class Autocompletes():
     return [x[1] for x in choice_list[:cog.bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
   
   # Combined
-  async def area_device_entity_autocomplete(
+  async def label_area_device_entity_autocomplete(
       cog,
       interaction: discord.Interaction,
       current_input: str,
@@ -152,14 +198,18 @@ class Autocompletes():
       supported_features: Optional[List[int] | int] = None,
       integration: Optional[str] = None
   ) -> List[app_commands.Choice[str]]:
+    # Get matches
     matching_entities: Set[str] | None = Autocompletes.get_matching_entities(cog, domain=domain, supported_features=supported_features, integration=integration)
     matching_devices: Set[str] | None = Autocompletes.get_matching_devices(cog, matching_entities=matching_entities)
     matching_areas: Set[str] | None = Autocompletes.get_matching_areas(cog, matching_entities=matching_entities, matching_devices=matching_devices)
+    matching_labels: Set[str] | None = Autocompletes.get_matching_labels(cog, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
 
+    # Create all choices
+    label_choice_list = await Autocompletes.get_label_autocomplete_choices(cog, current_input, prefix='LABEL$', display_prefix='Label: ', matching_labels=matching_labels)
     area_choice_list = await Autocompletes.get_area_autocomplete_choices(cog, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas)
     device_choice_list = await Autocompletes.get_device_autocomplete_choices(cog, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices)
     entity_choice_list = await Autocompletes.get_entity_autocomplete_choices(cog, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
-    choice_list = area_choice_list + device_choice_list + entity_choice_list
+    choice_list = area_choice_list + device_choice_list + entity_choice_list + label_choice_list
     choice_list.sort(key=lambda x: x[0], reverse=True)
 
     min_score = choice_list[0][0] * (1 - cog.bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
@@ -196,7 +246,35 @@ class Autocompletes():
     else:
       raise Exception("Incorrect choice")
     
-  # Area, devices, entities matching
+  # Labels, area, devices, entities matching
+  def get_matching_labels(
+      cog,
+      matching_entities: Set[str] | None,
+      matching_devices: Set[str] | None,
+      matching_areas: Set[str] | None
+  ) -> Set[str] | None:
+    if matching_entities is None and matching_devices is None and matching_areas is None:
+      return None
+    
+    try:
+      homeassistant_labels: List[LabelModel] = cog.bot.homeassistant_client.cache_custom_get_labels()
+      if homeassistant_labels is None:
+        raise Exception("No labels were returned")
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch labels", e)
+      return []
+    
+    matching_labels = set()
+    for label in homeassistant_labels:
+      if matching_areas is not None and len(set(label.areas).intersection(matching_areas)) != 0:
+        matching_labels.add(label.id)
+      elif matching_devices is not None and len(set(label.devices).intersection(matching_devices)) != 0:
+        matching_labels.add(label.id)
+      elif matching_entities is not None and len(set(label.entities).intersection(matching_entities)) != 0:
+        matching_labels.add(label.id)
+    
+    return matching_labels
+
   def get_matching_areas(
       cog,
       matching_entities: Set[str] | None,
@@ -258,7 +336,15 @@ class Autocompletes():
       if homeassistant_entities is None:
         raise Exception("No entities were returned")
     except Exception as e:
-      cog.bot.logger.error("Failed to fetch entities", e)
+      cog.bot.logger.error("Failed to fetch entities", type(e), e)
+      return []
+    
+    integration_entities: List[str] | None = None
+    try:
+      if integration is not None:
+        integration_entities: List[str] = cog.bot.homeassistant_client.custom_get_integration_entities(integration)
+    except Exception as e:
+      cog.bot.logger.error("Failed to fetch integration entities", type(e), e)
       return []
     
     passing_entities: Set[str] = set()
@@ -285,8 +371,9 @@ class Autocompletes():
         else:
           continue # No supported features, skip
       
-      if integration is not None:
-        pass # TODO: Add integration fetching
+      if integration_entities is not None:
+        if entity.entity_id not in integration_entities:
+          continue # Entity not in integration, skip
 
       passing_entities.add(entity.entity_id)
     return passing_entities

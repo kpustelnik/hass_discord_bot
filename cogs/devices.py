@@ -51,7 +51,8 @@ class Devices(commands.Cog):
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant", ephemeral=True)
 
       escaped_device_id = self.bot.homeassistant_client.escape_id(device_data.id)
-      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, f"history"), device_id=escaped_device_id)
+      history_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, "history"), device_id=escaped_device_id)
+      logbook_url = add_param(urllib.parse.urljoin(self.bot.homeassistant_url, "logbook"), device_id=escaped_device_id)
       config_url = urllib.parse.urljoin(self.bot.homeassistant_url, f"config/devices/device/{escaped_device_id}")
 
       embed = discord.Embed(
@@ -103,6 +104,7 @@ class Devices(commands.Cog):
 
       view = discord.ui.View()
       view.add_item(discord.ui.Button(label="Device history", url=history_url))
+      view.add_item(discord.ui.Button(label="Device logbook", url=logbook_url))
       view.add_item(discord.ui.Button(label="Device config", url=config_url))
       
       await interaction.followup.send(embed=embed, view=view)
