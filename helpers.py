@@ -24,6 +24,9 @@ def shorten_option_name(name: str):
 def shorten_embed_value(value: str):
   return shorten(value, 1024)
 
+def shorten_argument_rename(name: str):
+  return re.sub('[^a-z0-9_-]', '', name.lower())[:32]
+
 def find(f: Callable[[T], bool], seq: Iterable[T]) -> T | None:
   """Return first item in sequence matching f(item) predicate"""
   for item in seq:

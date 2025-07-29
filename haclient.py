@@ -1,7 +1,7 @@
 from homeassistant_api import Client as HAClient
 from cachetools import TTLCache
 from pydantic import TypeAdapter
-from typing import List, Optional, TypeVar, Callable
+from typing import List, Optional, TypeVar, Callable, Any, Tuple
 from helpers import find
 import re
 
@@ -207,3 +207,24 @@ class CustomHAClient(HAClient):
       method="POST",
       json=data
     ))
+  
+  # Triggering services
+  def custom_trigger_services(self, domain: str, service: str, **service_data) -> List[EntityModel]:
+    data = self.request(
+      f"services/{self.escape_id(domain)}/{self.escape_id(service)}",
+      method="POST",
+      json=service_data
+    )
+    return TypeAdapter(List[EntityModel]).validate_python(data)
+
+  def custom_trigger_service_with_response(self, domain: str, service: str, **service_data) -> Tuple[List[EntityModel], dict[str, Any]]:
+    data = self.request(
+      f"services/{self.escape_id(domain)}/{self.escape_id(service)}?return_response",
+      method='POST',
+      json=service_data
+    )
+
+    return (
+      TypeAdapter(List[EntityModel]).validate_python(data.get('changed_states', [])),
+      data.get("service_response", {})
+    )

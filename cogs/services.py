@@ -1,11 +1,12 @@
-from typing import Optional, Literal, List, Dict, Any, Callable
+from typing import Optional, Literal, List, Dict, Any, Callable, Set
 import discord
 from discord.ext import commands
 from discord import app_commands
 import yaml
 import json
 import inspect
-from helpers import shorten
+from helpers import shorten, shorten_argument_rename
+import datetime
 
 from bot import HASSDiscordBot
 from autocompletes import Autocompletes
@@ -59,7 +60,7 @@ class Services(commands.Cog):
           for name, value in kwargs.items() if value is not None
         }
       except Exception as e:
-        await interaction.followup.send(f'{Emoji.ERROR} {str(e)}')
+        await interaction.followup.send(f'{Emoji.ERROR} {str(e)}', ephemeral=True)
         return
 
       # Parse the target if available
@@ -76,6 +77,52 @@ class Services(commands.Cog):
             final_kwargs['entity_id'] = s[len('ENTITY$'):]
 
       # Send the request
+      try:
+        try:
+          changed_entities, response_data = self.bot.homeassistant_client.custom_trigger_service_with_response(
+            domain.domain,
+            service_id,
+            **final_kwargs
+          )
+        except RequestError:
+          response_data = None
+          changed_entities = self.bot.homeassistant_client.custom_trigger_services(
+            domain.domain,
+            service_id,
+            **final_kwargs
+          )
+      except Exception as e:
+        self.bot.logger.error('Failed to send action to HomeAssistant', type(e), e)
+        await interaction.followup.send(f'{Emoji.ERROR} Failed to send action to HomeAssistant', ephemeral=True)
+        return
+
+      # Create embed
+      embed = discord.Embed(
+        title=f"{domain.domain} > {service.name} execution",
+        description='',
+        color=discord.Colour.default(),
+        timestamp=datetime.datetime.now()
+      )
+
+      embed.add_field(
+        name=f'{Emoji.SUCCESS} Modified entities',
+        value=shorten("\n".join([
+          f"**{friendly_name if (friendly_name := self.bot.homeassistant_client.get_entity_friendlyname(entity)) is not None else "?"}** ({entity.entity_id})"
+          for entity in changed_entities
+        ]), 1024)
+      )
+
+      try:
+        content = None
+        if response_data is not None:
+          content = f'```json\n{json.dumps(response_data, indent=2)}\n```'
+
+        await interaction.followup.send(embed=embed, content=content)
+      except Exception as e:
+        self.bot.logger.error('Failed to construct the response', type(e), e)
+        await interaction.followup.send(f'{Emoji.ERROR} Failed to construct the response', ephemeral=True)
+        return
+
     # Adjust handler function properties
     handler.__name__ = f"{service_id}"  # required to avoid duplicate names
     handler.__qualname__ = handler.__name__
@@ -99,7 +146,7 @@ class Services(commands.Cog):
           annotation=str
         )
       )
-      renames["service_action_target"] = "Service action target"
+      renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(Autocompletes.area_device_entity_autocomplete, self) # Ugly solution but it works
   # TODO: target.entity.
@@ -229,11 +276,23 @@ class Services(commands.Cog):
       service_description = str(service.description) if service.description is not None else '-'
       if len(service_description) == 0: service_description = '-'
       
+      # Deduplicate renames
+      set_already_renamed: Set[str] = set()
+      final_renames = {}
+      for i, v in renames.items():
+        if i != v:
+          v = shorten_argument_rename(v)
+          if v not in set_already_renamed:
+            set_already_renamed.add(v)
+            final_renames[i] = v
+
       cmd = group.command(
         name=service_id,
         description=shorten(service.description, 100)
       )(
-        app_commands.describe(**{ i: shorten(v, 100) for i, v in descriptions.items() })(handler)
+        app_commands.rename(**final_renames)(
+          app_commands.describe(**{ i: shorten(v, 100) for i, v in descriptions.items() })(handler)
+        )
       )
 
       # Apply the autocompletes
