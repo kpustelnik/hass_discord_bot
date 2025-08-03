@@ -87,7 +87,10 @@ class Services(commands.Cog):
     
       await interaction.response.defer()
 
-      kwargs.update(constants) # Apply the constants
+      # Apply the constants
+      for id, value in constants.items():
+        if kwargs[id] == True:
+          kwargs[id] = value
 
       # Apply transformers
       try:
@@ -360,8 +363,11 @@ class Services(commands.Cog):
 
               elif field.selector.constant is not None: # ServiceFieldSelectorConstant
                 field_type = type(field.selector.constant.value)
-                if field.default is not None: default_value = field.default
-                is_hidden = True
+                if field.default is not None:
+                  default_value = field.default # For further consideration...
+                else:
+                  default_value = False
+                  
                 constants[field_id] = field.selector.constant.value
 
               else:
