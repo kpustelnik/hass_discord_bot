@@ -91,6 +91,8 @@ class Services(commands.Cog):
       for id, value in constants.items():
         if kwargs[id] == True:
           kwargs[id] = value
+        else:
+          del kwargs[id]
 
       # Apply transformers
       try:
