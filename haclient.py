@@ -290,3 +290,19 @@ class CustomHAClient(HAClient):
       TypeAdapter(List[EntityModel]).validate_python(data.get('changed_states', [])),
       data.get("service_response", {})
     )
+  
+  # Templating
+  def format_string(self, txt: str) -> str:
+    homeassistant_entities: List[EntityModel] = self.custom_get_entities()
+    if homeassistant_entities is None:
+      raise Exception("No entities were returned")
+
+    def replacer(match):
+        entity_id = match.group(1)
+        entity = find(lambda entity: entity.entity_id == entity_id, homeassistant_entities)
+        if entity is not None:
+          return entity.state
+        else:
+          return ''
+    
+    return re.sub(r'\{([^\}]+)\}', replacer, txt)
