@@ -61,7 +61,6 @@ class HASSDiscordBot(commands.Bot):
         new_status = self.homeassistant_client.format_string(self.status_template)
       except:
         new_status = "Unavailable"
-      print(new_status)
       await self.change_presence(activity=discord.Game(name=new_status))
 
   @status_task.before_loop
@@ -103,7 +102,7 @@ class HASSDiscordBot(commands.Bot):
       self.file_logger.info(f"CMD {executed_command} in DM by {context.author} (ID: {context.author.id})")
 
   async def on_command_error(self, context: Context, error) -> None:
-    print("Error", context, error)
+    pass
     # https://discordpy.readthedocs.io/en/stable/ext/commands/api.html
 
   
