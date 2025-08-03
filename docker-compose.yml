@@ -7,3 +7,5 @@ services:
     image: "ghcr.io/kpustelnik/hass_discord_bot:latest"
     env_file:
       - .env
+    volumes:
+      - ./usage.log:/app/usage.log
