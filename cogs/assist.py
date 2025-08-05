@@ -80,6 +80,10 @@ class Assist(commands.Cog):
 
           if response_data.response.data.code is not None:
             embed.add_field(name="Error code", value=response_data.response.data.code)
+          if response_data.response.speech_slots is not None and len(response_data.response.speech_slots) > 0:
+            embed.add_field(name="", value="Additional information", inline=False)
+            for id, value in response_data.response.speech_slots.items():
+              embed.add_field(name=id, value=value)
 
         await interaction.followup.send(embed=embed)
       else:

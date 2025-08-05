@@ -45,16 +45,5 @@ class ConversationResponse(BaseModel):
 
 class ConversationModel(BaseModel):
   response: ConversationResponse
-  conversation_id: str
+  conversation_id: Optional[str]
   continue_conversation: bool
-'''
-{'response': {'speech': {'plain': {
-  'speech': 'Turned off the lights', 'extra_data': None}}, 
-  'card': {}, 'language': 'en', 'response_type': 'action_done', 'data': {'targets': [], 
-                                                      'success': [{'name': 'Salon', 'type': 'area', 'id': 'salon'}, {'name': 'Salon sufit', 'type': 'entity', 'id': 'light.salon_sufit'}, {'name': 'Salon lampa stojąca', 'type': 'entity', 'id': 'light.salon_lampa_stojaca'}, {'name': 'Salon lampa TV', 'type': 'entity', 'id': 'light.salon_lampa_tv'}, {'name': 'Salon lampa stojąca', 'type': 'entity', 'id': 'light.salon_lampa_stojaca_3'}, {'name': 'Salon sufit', 'type': 'entity', 'id': 'light.salon_sufit_3'}, {'name': 'Salon lampa TV', 'type': 'entity', 'id': 'light.salon_lampa_tv_3'}], 'failed': []}}, 'conversation_id': '01K1842KJSV65GG963FKWQY1NY', 'continue_conversation': False}
-
-{'response': {'speech': {'plain': {'speech': "Sorry, I couldn't understand that", 'extra_data': None}}, 'card': {}, 'language': 'en', 'response_type': 'error', 'data': {'code': 'no_intent_match'}}, 'conversation_id': '01K1842KJSV65GG963FKWQY1NY', 'continue_conversation': False}
-
-{'speech': {'plain': {'speech': '11:01 AM', 'extra_data': None}}, 'card': {}, 'language': 'en', 
-              'response_type': 'action_done', 'speech_slots': {'time': '11:01:48.047857'}, 'data': {'targets': [], 'success': [], 'failed': []}}
-              '''
