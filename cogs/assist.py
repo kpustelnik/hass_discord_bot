@@ -13,25 +13,28 @@ from autocompletes import Autocompletes
 class Assist(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
-
-    assist_cmd = app_commands.Command(
-      name="assist",
-      description="Processes Home Assistant conversation",
-      callback=self.assist
-    )
-    assist_cmd._params['conversation_agent_id'].autocomplete = partial(Autocompletes.filtered_entity_autocomplete, self, domain='conversation') # Autocomplete conversation agent ids
-    self.bot.tree.add_command(
-      assist_cmd, 
-      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Assist command
-
     self.details = True
 
+  async def autocomplete_conversation_agent(self, interaction: discord.Interaction, current: str):
+    return await Autocompletes.filtered_entity_autocomplete(self, interaction, current, domain='conversation')
+
+  @app_commands.command(
+      name='assist',
+      description="Processes Home Assistant conversation"
+  )
   @app_commands.describe(message = "Message to send", language = "Language")
   @app_commands.choices(language = [
     app_commands.Choice(name="Polish", value="pl"),
     app_commands.Choice(name="English", value="en"),
   ])
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+  @app_commands.autocomplete(conversation_agent_id=autocomplete_conversation_agent)
   async def assist(self, interaction: discord.Interaction, message: str, language: app_commands.Choice[str] = os.getenv('DEFAULT_LANGUAGE'), conversation_agent_id: str = os.getenv('DEFAULT_AGENT') or 'conversation.home_assistant'):
+    if not (await self.bot.is_owner(interaction.user) or self.bot.discord_main_guild_id is None or (interaction.guild is not None and interaction.guild.id == self.bot.discord_main_guild_id)):
+      await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed by the bot's owner or in proper guild.", ephemeral=True)
+      return
+    
     try:
       await interaction.response.defer(thinking=True) # Notify Discord
 
