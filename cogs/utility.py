@@ -46,6 +46,8 @@ class Utility(commands.Cog):
   )
   @app_commands.autocomplete(cog_name=get_cog_autocomplete_choices)
   @app_commands.describe(cog_name="The name of the cog to reload")
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
   async def reload(self, interaction: discord.Interaction, cog_name: str) -> None:
     if not await self.bot.is_owner(interaction.user):
       await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed by the bot's owner.", ephemeral=True)
