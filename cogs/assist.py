@@ -1,23 +1,27 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from functools import partial
 import datetime
 import os
 
 from bot import HASSDiscordBot
 from enums.emojis import Emoji
 from models.ConversationModel import ConversationResponseType
+from autocompletes import Autocompletes
 
 class Assist(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
+    assist_cmd = app_commands.Command(
+      name="assist",
+      description="Processes Home Assistant conversation",
+      callback=self.assist
+    )
+    assist_cmd._params['conversation_agent_id'].autocomplete = partial(Autocompletes.filtered_entity_autocomplete, self, domain='conversation') # Autocomplete conversation agent ids
     self.bot.tree.add_command(
-      app_commands.Command(
-        name="assist",
-        description="Processes Home Assistant conversation",
-        callback=self.assist
-      ), 
+      assist_cmd, 
       guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Assist command
 
     self.details = True
@@ -27,14 +31,15 @@ class Assist(commands.Cog):
     app_commands.Choice(name="Polish", value="pl"),
     app_commands.Choice(name="English", value="en"),
   ])
-  async def assist(self, interaction: discord.Interaction, message: str, language: app_commands.Choice[str] = os.getenv('DEFAULT_LANGUAGE')):
+  async def assist(self, interaction: discord.Interaction, message: str, language: app_commands.Choice[str] = os.getenv('DEFAULT_LANGUAGE'), conversation_agent_id: str = os.getenv('DEFAULT_AGENT') or 'conversation.home_assistant'):
     try:
       await interaction.response.defer(thinking=True) # Notify Discord
 
       # Construct the request body
       request_data = {
         "text": message,
-        "language": language
+        "language": language,
+        "agent_id": conversation_agent_id
       }
       preset_conversation_id = self.bot.conversation_cache.get(interaction.user.id) is not None
       if preset_conversation_id:
