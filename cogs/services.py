@@ -10,7 +10,7 @@ import datetime
 import re
 
 from bot import HASSDiscordBot
-from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_area_device_entity_autocomplete, choice_autocomplete
+from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldCollection, ServiceField
@@ -30,7 +30,8 @@ class Services(commands.Cog):
         group = app_commands.Group(
           name=domain.domain,
           description=f"{domain.domain} services (actions)",
-          guild_ids=[self.bot.discord_main_guild_id] if self.bot.discord_main_guild_id is not None else None
+          allowed_contexts=app_commands.AppCommandContext(guild=True, dm_channel=True, private_channel=True),
+          allowed_installs=app_commands.AppInstallationType(guild=True, user=True)
         )
 
         any_added = False
@@ -200,7 +201,7 @@ class Services(commands.Cog):
       )
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
-      autocomplete_replacements["service_action_target"] = partial(  # Ugly solution but it works
+      autocomplete_replacements["service_action_target"] = partial(
         label_area_device_entity_autocomplete,
         domain=service.target.entity.domain,
         supported_features=service.target.entity.supported_features,
@@ -355,7 +356,6 @@ class Services(commands.Cog):
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, integration=field.selector.device.integration, domain=field.selector.device.domain)
 
-
               elif field.selector.icon is not None: # ServiceFieldSelectorText
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
@@ -422,18 +422,19 @@ class Services(commands.Cog):
             set_already_renamed.add(v)
             final_renames[i] = v
 
-      cmd = group.command(
+      group.command(
         name=service_id,
         description=shorten(service.description, 100)
       )(
-        app_commands.rename(**final_renames)(
-          app_commands.describe(**{ i: shorten(v, 100) for i, v in descriptions.items() })(handler)
+        app_commands.autocomplete(**{
+          i: require_permission_autocomplete(v, check_role=True)
+          for i, v in autocomplete_replacements.items()
+        })( # Apply the autocompletes
+          app_commands.rename(**final_renames)( # Apply the renames
+            app_commands.describe(**{ i: shorten(v, 100) for i, v in descriptions.items() })(handler)
+          )
         )
       )
-
-      # Apply the autocompletes
-      for i, func in autocomplete_replacements.items():
-        cmd._params[i].autocomplete = func
 
     except Exception as e:
       self.bot.logger.error("Failed to add service", domain.domain, service_id, type(e), e)
