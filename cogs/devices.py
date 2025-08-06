@@ -7,7 +7,7 @@ from typing import List
 
 from bot import HASSDiscordBot
 from helpers import add_param, find, shorten_embed_value
-from autocompletes import Autocompletes
+from autocompletes import device_autocomplete, require_permission_autocomplete
 from models.DeviceModel import DeviceModel
 from models.AreaModel import AreaModel
 from models.EntityModel import EntityModel
@@ -24,7 +24,7 @@ class Devices(commands.Cog):
   @app_commands.describe(device_id="HomeAssistant device identifier")
   @app_commands.allowed_installs(guilds=True, users=True)
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-  @app_commands.autocomplete(device_id=Autocompletes.device_autocomplete)
+  @app_commands.autocomplete(device_id=require_permission_autocomplete(device_autocomplete, check_role=True))
   async def get_device(self, interaction: discord.Interaction, device_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

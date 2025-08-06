@@ -9,7 +9,7 @@ from discord.ext import commands
 from bot import HASSDiscordBot
 from enums.emojis import Emoji
 from helpers import add_param, find, shorten_embed_value
-from autocompletes import Autocompletes
+from autocompletes import label_autocomplete, require_permission_autocomplete
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
@@ -26,7 +26,7 @@ class Labels(commands.Cog):
   @app_commands.describe(label_id="HomeAssistant label identifier")
   @app_commands.allowed_installs(guilds=True, users=True)
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-  @app_commands.autocomplete(label_id=Autocompletes.label_autocomplete)
+  @app_commands.autocomplete(label_id=require_permission_autocomplete(label_autocomplete, check_role=True))
   async def get_label(self, interaction: discord.Interaction, label_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

@@ -17,6 +17,9 @@ class Utility(commands.Cog):
     interaction: discord.Interaction,
     current_input: str
   ) -> List[app_commands.Choice[str]]:
+    if not await self.bot.is_owner(interaction.user):
+      return []
+
     COG_EXTENSION = ".py"
     cogs_list: List[str] = []
     for file in os.listdir(f"{os.path.realpath(os.path.dirname(__file__))}"):

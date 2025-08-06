@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from bot import HASSDiscordBot
 from helpers import add_param, find
-from autocompletes import Autocompletes
+from autocompletes import entity_autocomplete, require_permission_autocomplete
 from models.EntityModel import EntityModel
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
@@ -26,7 +26,7 @@ class Entities(commands.Cog):
   @app_commands.describe(entity_id="HomeAssistant entity identifier")
   @app_commands.allowed_installs(guilds=True, users=True)
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-  @app_commands.autocomplete(entity_id=Autocompletes.entity_autocomplete)
+  @app_commands.autocomplete(entity_id=require_permission_autocomplete(entity_autocomplete, check_role=True))
   async def get_entity(self, interaction: discord.Interaction, entity_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

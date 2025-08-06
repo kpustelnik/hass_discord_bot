@@ -8,15 +8,12 @@ import os
 from bot import HASSDiscordBot
 from enums.emojis import Emoji
 from models.ConversationModel import ConversationResponseType
-from autocompletes import Autocompletes
+from autocompletes import require_permission_autocomplete, filtered_entity_autocomplete
 
 class Assist(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
     self.details = True
-
-  async def autocomplete_conversation_agent(self, interaction: discord.Interaction, current: str):
-    return await Autocompletes.filtered_entity_autocomplete(self, interaction, current, domain='conversation')
 
   @app_commands.command(
       name='assist',
@@ -29,7 +26,12 @@ class Assist(commands.Cog):
   ])
   @app_commands.allowed_installs(guilds=True, users=True)
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-  @app_commands.autocomplete(conversation_agent_id=autocomplete_conversation_agent)
+  @app_commands.autocomplete(
+    conversation_agent_id=require_permission_autocomplete(
+      partial(filtered_entity_autocomplete, domain='conversation'),
+      check_role=False
+    )
+  )
   async def assist(self, interaction: discord.Interaction, message: str, language: app_commands.Choice[str] = os.getenv('DEFAULT_LANGUAGE'), conversation_agent_id: str = os.getenv('DEFAULT_AGENT') or 'conversation.home_assistant'):
     if not await self.bot.check_user_guild(interaction, check_role=False):
       return
@@ -40,7 +42,7 @@ class Assist(commands.Cog):
       # Construct the request body
       request_data = {
         "text": message,
-        "language": language,
+        "language": language.value,
         "agent_id": conversation_agent_id
       }
       preset_conversation_id = self.bot.conversation_cache.get(interaction.user.id) is not None

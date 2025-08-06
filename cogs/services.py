@@ -10,7 +10,7 @@ import datetime
 import re
 
 from bot import HASSDiscordBot
-from autocompletes import Autocompletes
+from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_area_device_entity_autocomplete, choice_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldCollection, ServiceField
@@ -201,8 +201,7 @@ class Services(commands.Cog):
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(  # Ugly solution but it works
-        Autocompletes.label_area_device_entity_autocomplete,
-        self,
+        label_area_device_entity_autocomplete,
         domain=service.target.entity.domain,
         supported_features=service.target.entity.supported_features,
         integration=service.target.entity.integration
@@ -267,7 +266,7 @@ class Services(commands.Cog):
                 if field.selector.entity.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
-                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_entity_autocomplete, self, integration=field.selector.entity.integration, domain=field.selector.entity.domain)
+                  autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, integration=field.selector.entity.integration, domain=field.selector.entity.domain)
 
               elif field.selector.select is not None: # ServiceFieldSelectorSelect 
                 field_options = field.selector.select.options
@@ -276,16 +275,16 @@ class Services(commands.Cog):
                   field_type = str
                   transformers[field_id] = partial(lambda c_field_options, input: Services.transform_multiple(
                     input,
-                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and Autocompletes.require_choice(input, all_choices=c_field_options)
+                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options)
                   ), field_options)
                 else:
                   if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
                   if len(field_options) > 25: # Too many options, use autocomplete
                     field_type = str
-                    autocomplete_replacements[field_id] = partial(Autocompletes.choice_autocomplete, self, all_choices=field_options)
+                    autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=field_options)
                   else: # Use literal type (choices implemented on Discord)
                     field_type = Literal[*field_options]
-                  transformers[field_id] = partial(Autocompletes.require_choice, all_choices=field_options) # Always confirm if the choice is valid
+                  transformers[field_id] = partial(require_choice, all_choices=field_options) # Always confirm if the choice is valid
 
               elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
                 field_type = bool
@@ -330,7 +329,7 @@ class Services(commands.Cog):
                 if field.selector.statistic.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
-                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_entity_autocomplete, self, integration=field.selector.statistic.integration, domain=field.selector.statistic.domain)
+                  autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, integration=field.selector.statistic.integration, domain=field.selector.statistic.domain)
 
               elif field.selector.object is not None: # ServiceFieldSelectorObject
                 field_type = str
@@ -354,7 +353,7 @@ class Services(commands.Cog):
                 if field.selector.device.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
-                  autocomplete_replacements[field_id] = partial(Autocompletes.filtered_device_autocomplete, self, integration=field.selector.device.integration, domain=field.selector.device.domain)
+                  autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, integration=field.selector.device.integration, domain=field.selector.device.domain)
 
 
               elif field.selector.icon is not None: # ServiceFieldSelectorText
