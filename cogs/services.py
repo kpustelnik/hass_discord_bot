@@ -82,7 +82,7 @@ class Services(commands.Cog):
     transformers: Dict[str, Callable[[Any], Any]] = {}
     renames: Dict[str, str] = {}
     async def handler(interaction: discord.Interaction, **kwargs):
-      if not await self.bot.check_user_role(interaction):
+      if not await self.bot.check_user_guild(interaction, check_role=True):
         return
     
       await interaction.response.defer()

@@ -31,8 +31,7 @@ class Assist(commands.Cog):
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
   @app_commands.autocomplete(conversation_agent_id=autocomplete_conversation_agent)
   async def assist(self, interaction: discord.Interaction, message: str, language: app_commands.Choice[str] = os.getenv('DEFAULT_LANGUAGE'), conversation_agent_id: str = os.getenv('DEFAULT_AGENT') or 'conversation.home_assistant'):
-    if not (await self.bot.is_owner(interaction.user) or self.bot.discord_main_guild_id is None or (interaction.guild is not None and interaction.guild.id == self.bot.discord_main_guild_id)):
-      await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed by the bot's owner or in proper guild.", ephemeral=True)
+    if not await self.bot.check_user_guild(interaction, check_role=False):
       return
     
     try:

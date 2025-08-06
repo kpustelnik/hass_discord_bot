@@ -29,7 +29,7 @@ class Areas(commands.Cog):
   @app_commands.autocomplete(area_id=Autocompletes.area_autocomplete)
   @app_commands.describe(area_id="HomeAssistant area identifier")
   async def get_area(self, interaction: discord.Interaction, area_id: str):
-    if not await self.bot.check_user_role(interaction):
+    if not await self.bot.check_user_guild(interaction, check_role=True):
       return
     
     try:

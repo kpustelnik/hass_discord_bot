@@ -117,17 +117,30 @@ class HASSDiscordBot(commands.Bot):
     except Exception as e:
       self.logger.error("Sync error", e)
   
-  async def check_user_role(self, interaction: discord.Interaction) -> bool:
-    if not interaction.guild:
-      await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed in guild.", ephemeral=True)
+  async def check_user_guild(self, interaction: discord.Interaction, check_role=False) -> bool:
+    if await self.bot.is_owner(interaction.user): # The bot's owner should always be able to run the command
+      return True
+
+    if self.discord_main_guild_id is None: # Guild is not limited, the command can be run
+      return True
+
+    guild = self.get_guild(self.discord_main_guild_id)
+    if guild is None and interaction.guild is not None and interaction.guild.id == self.discord_main_guild_id:
+      # If guild can't be fetched but the interaction was run in correct guild, assign it to variable
+      guild = interaction.guild
+
+    if guild is None: # Guild can't be found
+      await interaction.response.send_message(f"{Emoji.ERROR} Guild was not found and the command was not run in correct guild.", ephemeral=True)
       return False
     
-    member = interaction.user
-    if not isinstance(member, discord.Member):
-      member = await interaction.guild.fetch_member(interaction.user.id)
-
-    if self.discord_special_role_id is not None and not any(role.id == self.discord_special_role_id for role in member.roles):
-      await interaction.response.send_message(f"{Emoji.ERROR} You need <@&{self.discord_special_role_id}> role to run this command.", ephemeral=True)
+    member = await guild.fetch_member(interaction.user.id) # Fetch the guild member
+    if member is None or member.pending:
+      await interaction.response.send_message(f"{Emoji.ERROR} You are not in required guild or you are still pending.", ephemeral=True)
       return False
 
-    return True
+    if check_role and self.discord_special_role_id is not None: # Also check if the executor has correct role
+      if not any(role.id == self.discord_special_role_id for role in member.roles):
+        await interaction.response.send_message(f"{Emoji.ERROR} You need <@&{self.discord_special_role_id}> role to run this command.", ephemeral=True)
+        return False
+
+    return True # Assume the command can be run
