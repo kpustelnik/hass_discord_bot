@@ -118,7 +118,7 @@ class HASSDiscordBot(commands.Bot):
       self.logger.error("Sync error", e)
   
   async def check_user_guild(self, interaction: discord.Interaction, check_role=False) -> bool:
-    if await self.bot.is_owner(interaction.user): # The bot's owner should always be able to run the command
+    if await self.is_owner(interaction.user): # The bot's owner should always be able to run the command
       return True
 
     if self.discord_main_guild_id is None: # Guild is not limited, the command can be run
