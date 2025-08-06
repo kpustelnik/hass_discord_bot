@@ -18,16 +18,14 @@ class Areas(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
-    self.bot.tree.add_command(
-      app_commands.Command(
-        name="get_area",
-        description="Retrieves information about an area from Home Assistant",
-        callback=self.get_area
-      ), 
-      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Get area command
-
-  @app_commands.autocomplete(area_id=Autocompletes.area_autocomplete)
+  @app_commands.command(
+    name="get_area",
+    description="Retrieves information about an area from Home Assistant"
+  )
   @app_commands.describe(area_id="HomeAssistant area identifier")
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+  @app_commands.autocomplete(area_id=Autocompletes.area_autocomplete)
   async def get_area(self, interaction: discord.Interaction, area_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

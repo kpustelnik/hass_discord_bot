@@ -19,16 +19,14 @@ class Labels(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
-    self.bot.tree.add_command(
-      app_commands.Command(
-        name="get_label",
-        description="Retrieves information about a label from Home Assistant",
-        callback=self.get_label
-      ), 
-      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Get label command
-
-  @app_commands.autocomplete(label_id=Autocompletes.label_autocomplete)
+  @app_commands.command(
+    name="get_label",
+    description="Retrieves information about a label from Home Assistant"
+  )
   @app_commands.describe(label_id="HomeAssistant label identifier")
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+  @app_commands.autocomplete(label_id=Autocompletes.label_autocomplete)
   async def get_label(self, interaction: discord.Interaction, label_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

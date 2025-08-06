@@ -17,16 +17,14 @@ class Devices(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
-    self.bot.tree.add_command(
-      app_commands.Command(
-        name="get_device",
-        description="Retrieves information about a device from Home Assistant",
-        callback=self.get_device
-      ), 
-      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Get device command
-
-  @app_commands.autocomplete(device_id=Autocompletes.device_autocomplete)
+  @app_commands.command(
+    name="get_device",
+    description="Retrieves information about a device from Home Assistant"
+  )
   @app_commands.describe(device_id="HomeAssistant device identifier")
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+  @app_commands.autocomplete(device_id=Autocompletes.device_autocomplete)
   async def get_device(self, interaction: discord.Interaction, device_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return

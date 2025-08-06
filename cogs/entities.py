@@ -19,16 +19,14 @@ class Entities(commands.Cog):
     self.bot = bot
     self.OMMITED_ENTITY_ATTRIBUTES = ["friendly_name"]
 
-    self.bot.tree.add_command(
-      app_commands.Command(
-        name="get_entity",
-        description="Retrieves information about an entity from Home Assistant",
-        callback=self.get_entity
-      ), 
-      guild=discord.Object(self.bot.discord_main_guild_id) if self.bot.discord_main_guild_id is not None else None) # Get entity command
-
-  @app_commands.autocomplete(entity_id=Autocompletes.entity_autocomplete)
+  @app_commands.command(
+    name="get_entity",
+    description="Retrieves information about an entity from Home Assistant"
+  )
   @app_commands.describe(entity_id="HomeAssistant entity identifier")
+  @app_commands.allowed_installs(guilds=True, users=True)
+  @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+  @app_commands.autocomplete(entity_id=Autocompletes.entity_autocomplete)
   async def get_entity(self, interaction: discord.Interaction, entity_id: str):
     if not await self.bot.check_user_guild(interaction, check_role=True):
       return
