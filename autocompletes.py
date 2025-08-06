@@ -8,6 +8,7 @@ from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
+from enums.emojis import Emoji
 
 # Labels
 async def get_label_autocomplete_choices(
@@ -300,7 +301,7 @@ def require_permission_autocomplete(
   async def handler(interaction: discord.Interaction, current_input: str) -> List[app_commands.Choice[str]]:
     bot: HASSDiscordBot = interaction.client
     if not await bot.check_user_guild(interaction, check_role):
-      return []
+      return [app_commands.Choice(name=f'{Emoji.WARNING} Failed to fetch suggestions.', value='')]
     
     return await func(interaction, current_input)
   return handler
