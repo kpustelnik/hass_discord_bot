@@ -56,10 +56,11 @@ class Utility(commands.Cog):
       await interaction.response.send_message(f"{Emoji.ERROR} Command needs to be executed by the bot's owner.", ephemeral=True)
       return
 
+    extension_name = f"cogs.{cog_name}"
     try:
       await interaction.response.defer()
       try:
-        await self.bot.reload_extension(f"cogs.{cog_name}")
+        await self.bot.reload_extension(extension_name)
         await interaction.followup.send(f"{Emoji.SUCCESS} Successfully reloaded the extension.")
       except Exception:
         await interaction.followup.send(f"{Emoji.ERROR} Failed to reload the `{cog_name}` cog.", ephemeral=True)
