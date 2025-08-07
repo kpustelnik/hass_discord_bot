@@ -44,16 +44,17 @@ class HASSDiscordBot(commands.Bot):
   async def load_cogs(self) -> None:
     COG_EXTENSION = ".py"
     for file in os.listdir(f"{os.path.realpath(os.path.dirname(__file__))}/cogs"):
-      extension_name = f"cogs.{cog_name}"
-      if file.endswith(COG_EXTENSION) and not extension_name in self.extensions:
+      if file.endswith(COG_EXTENSION):
         cog_name = file[:-len(COG_EXTENSION)]
-        try:
-          await self.load_extension(extension_name)
-          self.logger.info(f"Loaded cog {cog_name}")
-        except Exception as e:
-          self.logger.error(
-            f"Failed to load the cog {cog_name} - {type(e).__name__}\n{e}"
-          )
+        extension_name = f"cogs.{cog_name}"
+        if not extension_name in self.extensions:
+          try:
+            await self.load_extension(extension_name)
+            self.logger.info(f"Loaded cog {cog_name}")
+          except Exception as e:
+            self.logger.error(
+              f"Failed to load the cog {cog_name} - {type(e).__name__}\n{e}"
+            )
 
   @tasks.loop(minutes=1)
   async def status_task(self) -> None:
