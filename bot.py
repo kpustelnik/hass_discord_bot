@@ -105,7 +105,26 @@ class HASSDiscordBot(commands.Bot):
   async def on_command_error(self, context: Context, error) -> None:
     pass
     # https://discordpy.readthedocs.io/en/stable/ext/commands/api.html
-
+  
+  async def on_app_command_error(self, interaction: discord.Interaction, error):
+    try:
+      if isinstance(error, app_commands.CommandOnCooldown):
+        await interaction.response.send_message(f"{Emoji.ERROR} Command on cooldown. Try again in {error.retry_after:.2f} seconds.", ephemeral=True)
+      elif isinstance(error, app_commands.BotMissingPermissions):
+        await interaction.response.send_message(f"{Emoji.ERROR} Bot is missing some permissions.", ephemeral=True)
+      elif isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message(f"{Emoji.ERROR} You are missing required permissions", ephemeral=True)
+      elif isinstance(error, app_commands.CommandNotFound):
+        await interaction.response.send_message(f"{Emoji.ERROR} Command was not found.", ephemeral=True)
+      elif isinstance(error, app_commands.CommandSignatureMismatch):
+        await interaction.response.send_message(f"{Emoji.ERROR} Signature mismatch - refresh your client and retry.", ephemeral=True)
+      elif isinstance(error, app_commands.AppCommandError):
+        await interaction.response.send_message(f"{Emoji.ERROR} Error occured during command execution.", ephemeral=True)
+      else:
+        await interaction.response.send_message(f"{Emoji.ERROR} Unexpected exception.", ephemeral=True)
+        self.logger.error(f"Unexpected error", type(error), error)
+    except Exception as e:
+      self.logger.error("Command error handling", type(e), e)
   
   async def on_ready(self):
     self.file_logger.info("Bot is ready")
