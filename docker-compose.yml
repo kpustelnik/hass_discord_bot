@@ -8,4 +8,4 @@ services:
     env_file:
       - .env
     volumes:
-      - ./usage.log:/app/usage.log
+      - ./logs:/app/logs

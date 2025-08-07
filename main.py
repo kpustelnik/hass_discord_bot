@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
 
@@ -15,7 +16,11 @@ file_logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", "%Y-%m-%d %H:%M:%S", style="{"))
-file_handler = logging.FileHandler(filename="usage.log", encoding="utf-8", mode="a")
+file_handler = RotatingFileHandler(
+  'logs/usage.log',
+  maxBytes=5*1024*1024, 
+  backupCount=5
+)
 file_handler.setFormatter(logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", "%Y-%m-%d %H:%M:%S", style="{"))
 logger.addHandler(handler)
 file_logger.addHandler(handler)
