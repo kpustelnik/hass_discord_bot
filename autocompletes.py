@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from typing import List, Optional, Set
 from bot import HASSDiscordBot
-from functools import wraps
 
 from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id
 from models.AreaModel import AreaModel
@@ -299,7 +298,6 @@ async def choice_autocomplete(
 def require_permission_autocomplete(
   func, check_role: Optional[str] = None
 ) -> List[app_commands.Choice[str]]:
-  @wraps(func)
   async def handler(interaction: discord.Interaction, current_input: str) -> List[app_commands.Choice[str]]:
     bot: HASSDiscordBot = interaction.client
     if not await bot.check_user_guild(interaction, check_role):
