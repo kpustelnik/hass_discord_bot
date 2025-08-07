@@ -42,7 +42,7 @@ class Assist(commands.Cog):
       # Construct the request body
       request_data = {
         "text": message,
-        "language": language.value,
+        "language": language if isinstance(language, str) else language.value, # string or choice
         "agent_id": conversation_agent_id
       }
       preset_conversation_id = self.bot.conversation_cache.get(interaction.user.id) is not None
