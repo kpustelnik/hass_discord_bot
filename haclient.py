@@ -30,14 +30,13 @@ class CustomHAClient(HAClient):
   def escape_id(id: str) -> str:
     return re.sub('[^a-zA-Z0-9_:.]', '', id)
 
-  def cache_data(self, func: Callable[[], T], id: str, bypass=False) -> T:
-    if not bypass:
-      data: T | None = self.cache.get(id)
-      if data is None: # Need to fetch
-        fetched_data: T = func()
-        if fetched_data is not None:
-          self.cache[id] = fetched_data
-          data = fetched_data
+  def cache_data(self, func: Callable[[], T], id: str, bypass: bool = False) -> T:
+    data: T | None = self.cache.get(id)
+    if bypass or data is None: # Need to fetch
+      fetched_data: T = func()
+      if fetched_data is not None:
+        self.cache[id] = fetched_data
+        data = fetched_data
     return data
   
   # Areas
@@ -61,7 +60,7 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[AreaModel]).validate_json(fetched_areas_json)
   
-  def cache_custom_get_areas(self, bypass=False) -> List[AreaModel]:
+  def cache_custom_get_areas(self, bypass: bool = False) -> List[AreaModel]:
      return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS, bypass=bypass)
 
   def custom_get_area(self, area_id: str) -> Optional[AreaModel]:
@@ -121,7 +120,7 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[LabelModel]).validate_json(fetched_labels_json)
   
-  def cache_custom_get_labels(self, bypass=False) -> List[LabelModel]:
+  def cache_custom_get_labels(self, bypass: bool = False) -> List[LabelModel]:
     return self.cache_data(lambda: self.custom_get_labels(), HomeAssistantCacheId.LABELS, bypass=bypass)
 
   def custom_get_label(self, label_id: str) -> Optional[LabelModel]:
@@ -176,7 +175,7 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[DeviceModel]).validate_json(fetched_devices_json)
   
-  def cache_custom_get_devices(self, bypass=False) -> List[DeviceModel]:
+  def cache_custom_get_devices(self, bypass: bool = False) -> List[DeviceModel]:
     return self.cache_data(lambda: self.custom_get_devices(), HomeAssistantCacheId.DEVICES, bypass=bypass)
 
   def custom_get_device(self, device_id: str) -> Optional[DeviceModel]:
@@ -210,7 +209,7 @@ class CustomHAClient(HAClient):
   def custom_get_entities(self) -> List[EntityModel]:
     return TypeAdapter(List[EntityModel]).validate_python(self.request("states"))
 
-  def cache_custom_get_entities(self, bypass=False) -> List[EntityModel]:
+  def cache_custom_get_entities(self, bypass: bool = False) -> List[EntityModel]:
     return self.cache_data(lambda: self.custom_get_entities(), HomeAssistantCacheId.ENTITIES, bypass=bypass)
   
   def custom_get_entity(self, entity_id: str) -> Optional[EntityModel]:
@@ -255,7 +254,7 @@ class CustomHAClient(HAClient):
     
     return TypeAdapter(List[DomainModel]).validate_python(fetched_domains)
 
-  def cache_custom_get_domains(self, bypass=False) -> List[DomainModel]:
+  def cache_custom_get_domains(self, bypass: bool = False) -> List[DomainModel]:
     return self.cache_data(lambda: self.custom_get_domains(), HomeAssistantCacheId.DOMAINS, bypass=bypass)
   
   def custom_get_domain(self, domain_name: str) -> Optional[DomainModel]:
