@@ -88,7 +88,7 @@ class ServiceTargetEntity(BaseModel):
   domain: Optional[List[str]] = None
   supported_features: Optional[List[int] | int] = None # Bitset flags
   integration: Optional[str] = None
-  # `area_id``, `device_id``, `entity_id``, label can be passed as a target
+  # `area_id``, `device_id``, `entity_id`, `label_id` can be passed as a target
 
 class ServiceTarget(BaseModel):
   device: Optional[ServiceTargetDevice] = None # Not currently used for anything? (The only action which has it also has `entity` target)
