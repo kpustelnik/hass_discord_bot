@@ -5,6 +5,7 @@ from typing import List, Optional, TypeVar, Callable, Any, Tuple
 from helpers import find
 import re
 import json
+import requests
 
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
@@ -13,6 +14,7 @@ from models.FloorModel import FloorModel
 from models.AreaModel import AreaModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
+from models.MDIIconMeta import MDIIconMeta
 
 T = TypeVar('T')
 
@@ -353,3 +355,11 @@ class CustomHAClient(HAClient):
           return ''
     
     return re.sub(r'\{([^\}]+)\}', replacer, txt)
+  
+  # MDI Icons
+  def get_mdi_icons(self) -> List[MDIIconMeta]:
+    result = requests.get('https://raw.githubusercontent.com/Templarian/MaterialDesign-SVG/master/meta.json')
+    return TypeAdapter(List[MDIIconMeta]).validate_python(result.json())
+  
+  def cache_get_mdi_icons(self, bypass: bool = False) -> List[MDIIconMeta]:
+    return self.cache_data(lambda: self.get_mdi_icons(), 'MDI_ICONS', bypass=bypass)

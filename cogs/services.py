@@ -110,13 +110,15 @@ class Services(commands.Cog):
         target = final_kwargs['service_action_target']
         del final_kwargs['service_action_target']
 
-        match target:
+        match target: # Targets could also be lists
           case s if s.startswith('AREA$'):
             final_kwargs['area_id'] = s[len('AREA$'):]
           case s if s.startswith('DEVICE$'):
             final_kwargs['device_id'] = s[len('DEVICE$'):]
           case s if s.startswith('ENTITY$'):
             final_kwargs['entity_id'] = s[len('ENTITY$'):]
+          case s if s.startswith('FLOOR$'):
+            final_kwargs['floor_id'] = s[len('FLOOR$'):]
           case s if s.startswith('LABEL$'):
             final_kwargs['label_id'] = s[len('LABEL$'):]
 

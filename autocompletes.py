@@ -9,7 +9,51 @@ from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
+from models.MDIIconMeta import MDIIconMeta
 from enums.emojis import Emoji
+
+# MDI Icons
+async def get_icon_autocomplete_choices(
+  bot: HASSDiscordBot,
+  current_input: str
+) -> List[app_commands.Choice[str]]:
+  try:
+    mdi_icons: List[MDIIconMeta] = bot.homeassistant_client.cache_get_mdi_icons()
+    if mdi_icons is None:
+      raise Exception("No icons were returned")
+  except Exception as e:
+    bot.logger.error("Failed to fetch icons", e)
+    return []
+  
+  target_tokens = tokenize(current_input)
+  choice_list = [
+    (
+      max([
+        fuzzy_keyword_match_with_order(tokenize(mdi_icon.name), target_tokens),
+        *[
+          fuzzy_keyword_match_with_order(tokenize(alias), target_tokens)
+          for alias in mdi_icon.aliases
+        ]
+      ]),
+      app_commands.Choice(
+        name=shorten_option_name(f"{mdi_icon.name} ({mdi_icon.id})"),
+        value=f"mdi:{mdi_icon.name}"
+      )
+    )
+    for mdi_icon in mdi_icons
+  ]
+  return choice_list
+  
+async def icon_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str
+) -> List[app_commands.Choice[str]]:
+  bot: HASSDiscordBot = interaction.client
+  choice_list: List[app_commands.Choice[str]] = await get_icon_autocomplete_choices(bot, current_input)
+  choice_list.sort(key=lambda x: x[0], reverse=True)
+
+  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
 
 # Labels
 async def get_label_autocomplete_choices(
