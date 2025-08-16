@@ -4,6 +4,7 @@ from typing import List, Optional, Set
 from bot import HASSDiscordBot
 
 from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id
+from models.FloorModel import FloorModel
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
@@ -50,6 +51,51 @@ async def label_autocomplete(
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   choice_list: List[app_commands.Choice[str]] = await get_label_autocomplete_choices(bot, current_input)
+  choice_list.sort(key=lambda x: x[0], reverse=True)
+
+  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+
+# Floors
+async def get_floor_autocomplete_choices(
+    bot: HASSDiscordBot,
+    current_input: str,
+    prefix: str = '',
+    display_prefix: str = '',
+    matching_floors: Set[str] | None = None
+) -> List[app_commands.Choice[str]]:
+  try:
+    homeassistant_floors: List[FloorModel] = bot.homeassistant_client.cache_custom_get_floors()
+    if homeassistant_floors is None:
+      raise Exception("No floors were returned")
+  except Exception as e:
+    bot.logger.error("Failed to fetch floors", e)
+    return []
+  
+  checked_floors = filter(lambda x: x.id in matching_floors, homeassistant_floors) if matching_floors is not None else homeassistant_floors
+
+  target_tokens = tokenize(current_input)
+  choice_list = [
+    (
+      max(
+        fuzzy_keyword_match_with_order(tokenize(floor.id), target_tokens),
+        fuzzy_keyword_match_with_order(tokenize(floor.name), target_tokens)
+      ),
+      app_commands.Choice(
+        name=shorten_option_name(f"{display_prefix}{floor.name} ({floor.id})"),
+        value=f'{prefix}{bot.homeassistant_client.escape_id(floor.id)}'
+      )
+    )
+    for floor in checked_floors
+  ]
+  return choice_list
+  
+async def floor_autocomplete(
+    interaction: discord.Interaction,
+    current_input: str
+) -> List[app_commands.Choice[str]]:
+  bot: HASSDiscordBot = interaction.client
+  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
@@ -247,7 +293,7 @@ async def filtered_entity_autocomplete(
   return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
 
 # Combined
-async def label_area_device_entity_autocomplete(
+async def label_floor_area_device_entity_autocomplete(
   interaction: discord.Interaction,
   current_input: str,
   domain: Optional[List[str]] = None,
@@ -259,14 +305,16 @@ async def label_area_device_entity_autocomplete(
   matching_entities: Set[str] | None = get_matching_entities(bot, domain=domain, supported_features=supported_features, integration=integration)
   matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities)
   matching_areas: Set[str] | None = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_floors: Set[str] | None = get_matching_floors(bot, matching_entities=matching_entities, matching_areas=matching_areas)
   matching_labels: Set[str] | None = get_matching_labels(bot, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
 
   # Create all choices
   label_choice_list = await get_label_autocomplete_choices(bot, current_input, prefix='LABEL$', display_prefix='Label: ', matching_labels=matching_labels)
+  floor_choice_list = await get_floor_autocomplete_choices(bot, current_input, prefix='FLOOR$', display_prefix='Floor: ', matching_floors=matching_floors)
   area_choice_list = await get_area_autocomplete_choices(bot, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas)
   device_choice_list = await get_device_autocomplete_choices(bot, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices)
   entity_choice_list = await get_entity_autocomplete_choices(bot, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
-  choice_list = area_choice_list + device_choice_list + entity_choice_list + label_choice_list
+  choice_list = area_choice_list + device_choice_list + entity_choice_list + floor_choice_list + label_choice_list
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
@@ -313,7 +361,7 @@ def require_choice(input: str, all_choices: List[str]) -> str:
   else:
     raise Exception("Incorrect choice")
   
-# Labels, area, devices, entities matching
+# Labels, floors, area, devices, entities matching
 def get_matching_labels(
   bot: HASSDiscordBot,
   matching_entities: Set[str] | None,
@@ -341,6 +389,31 @@ def get_matching_labels(
       matching_labels.add(label.id)
   
   return matching_labels
+
+def get_matching_floors(
+    bot: HASSDiscordBot,
+    matching_entities: Set[str] | None,
+    matching_areas: Set[str] | None
+) -> Set[str] | None:
+  if matching_entities is None and matching_areas is None:
+    return None
+  
+  try:
+    homeassistant_floors: List[FloorModel] = bot.homeassistant_client.cache_custom_get_floors()
+    if homeassistant_floors is None:
+      raise Exception("No floors were returned")
+  except Exception as e:
+    bot.logger.error("Failed to fetch floors", e)
+    return []
+  
+  matching_floors = set()
+  for floor in homeassistant_floors:
+    if matching_areas is not None and len(set(floor.areas).intersection(matching_floors)) != 0:
+      matching_floors.add(floor.id)
+    elif matching_entities is not None and len(set(floor.entities).intersection(matching_entities)) != 0:
+      matching_floors.add(floor.id)
+
+  return matching_floors
 
 def get_matching_areas(
     bot: HASSDiscordBot,
