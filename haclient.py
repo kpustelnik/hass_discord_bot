@@ -9,6 +9,7 @@ import json
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
 from models.ServiceModel import DomainModel
+from models.FloorModel import FloorModel
 from models.AreaModel import AreaModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
@@ -38,6 +39,53 @@ class CustomHAClient(HAClient):
         self.cache[id] = fetched_data
         data = fetched_data
     return data
+
+  # Floors
+  def custom_get_floors(self) -> List[FloorModel]:
+    fetched_floors_json: str = self.get_rendered_template('''
+    {%- set ns = namespace(floors = []) %}
+    {%- for floor_id in floors() %}
+      {%- set areas = floor_areas(floor_id) | list %}
+      {%- set entities = floor_entities(floor_id) | list %}
+      {%- set ns.floors = ns.floors + [
+        {
+          "id": floor_id,
+          "name": floor_name(floor_id),
+          "areas": areas,
+          "entities": entities
+        }
+      ] %}
+    {%- endfor %}
+    {{ ns.floors | tojson }}
+    ''')
+
+    return TypeAdapter(List[FloorModel]).validate_json(fetched_floors_json)
+  
+  def cache_custom_get_floors(self, bypass: bool = False) -> List[FloorModel]:
+    return self.cache_data(lambda: self.custom_get_floors(), HomeAssistantCacheId.FLOORS, bypass=bypass)
+  
+  def custom_get_floor(self, floor_id: str) -> Optional[FloorModel]:
+    fetched_floor_json: str = self.get_rendered_template(
+    f"{"{%"}- set floor_id = '{self.escape_id(floor_id)}' {"%}"}"     
+    +
+    '''
+    {%- set areas = floor_areas(floor_id) | list %}
+    {%- set entities = floor_entities(floor_id) | list %}
+    {%- set name = floor_name(floor_id) %}
+    {%- if name %}
+      {{ {
+        "id": floor_id,
+        "name": name,
+        "areas": areas,
+        "entities": entities
+      } | tojson }}
+    {%- endif %}
+    ''')
+
+    if fetched_floor_json == '':
+      return None
+
+    return TypeAdapter(FloorModel).validate_json(fetched_floor_json)
   
   # Areas
   def custom_get_areas(self) -> List[AreaModel]:
@@ -61,7 +109,7 @@ class CustomHAClient(HAClient):
     return TypeAdapter(List[AreaModel]).validate_json(fetched_areas_json)
   
   def cache_custom_get_areas(self, bypass: bool = False) -> List[AreaModel]:
-     return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS, bypass=bypass)
+    return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS, bypass=bypass)
 
   def custom_get_area(self, area_id: str) -> Optional[AreaModel]:
     fetched_area_json: str = self.get_rendered_template(

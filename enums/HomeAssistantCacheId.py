@@ -4,3 +4,4 @@ class HomeAssistantCacheId:
   DEVICES = "DEVICES"
   AREAS = "AREAS"
   LABELS = "LABELS"
+  FLOORS = "FLOORS"
