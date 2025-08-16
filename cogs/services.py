@@ -10,7 +10,7 @@ import datetime
 import re
 
 from bot import HASSDiscordBot
-from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
+from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldCollection, ServiceField
@@ -202,7 +202,7 @@ class Services(commands.Cog):
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(
-        label_area_device_entity_autocomplete,
+        label_floor_area_device_entity_autocomplete,
         domain=service.target.entity.domain,
         supported_features=service.target.entity.supported_features,
         integration=service.target.entity.integration
