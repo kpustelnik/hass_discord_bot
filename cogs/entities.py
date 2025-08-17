@@ -35,7 +35,7 @@ class Entities(commands.Cog):
       await interaction.response.defer()
 
       try:
-        entity_data: EntityModel | None = self.bot.homeassistant_client.custom_get_entity(entity_id=entity_id)
+        entity_data: EntityModel | None = await self.bot.homeassistant_client.async_custom_get_entity(entity_id=entity_id)
         if entity_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No entity found.", ephemeral=True)
       except Exception as e:
@@ -43,7 +43,7 @@ class Entities(commands.Cog):
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entity from HomeAssistant.", ephemeral=True)
       
       try:
-        areas_data: List[AreaModel] = self.bot.homeassistant_client.cache_custom_get_areas()
+        areas_data: List[AreaModel] = await self.bot.homeassistant_client.cache_async_custom_get_areas()
         if areas_data is None:
           raise Exception("No areas were returned")
       except Exception as e:
@@ -51,7 +51,7 @@ class Entities(commands.Cog):
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch areas from HomeAssistant", ephemeral=True)
       
       try:
-        devices_data: List[DeviceModel] = self.bot.homeassistant_client.cache_custom_get_devices()
+        devices_data: List[DeviceModel] = await self.bot.homeassistant_client.cache_async_custom_get_devices()
         if devices_data is None:
           raise Exception("No devices were returned")
       except Exception as e:

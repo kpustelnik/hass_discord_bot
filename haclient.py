@@ -1,11 +1,11 @@
 from homeassistant_api import Client as HAClient
 from cachetools import TTLCache
 from pydantic import TypeAdapter
-from typing import List, Optional, TypeVar, Callable, Any, Tuple
+from typing import List, Optional, TypeVar, Callable, Any, Tuple, Awaitable
 from helpers import find
 import re
 import json
-import requests
+import aiohttp
 
 from models.DeviceModel import DeviceModel
 from models.ConversationModel import ConversationModel
@@ -23,7 +23,7 @@ from enums.HomeAssistantCacheId import HomeAssistantCacheId
 class CustomHAClient(HAClient):
   def __init__(self, *args, **kwargs):
     self.cache = TTLCache(maxsize=100, ttl=15*60)
-    super().__init__(*args, **kwargs)
+    super().__init__(use_async=True, *args, **kwargs)
   
   @staticmethod
   def get_entity_friendlyname(entity: EntityModel) -> str | None:
@@ -33,7 +33,7 @@ class CustomHAClient(HAClient):
   def escape_id(id: str) -> str:
     return re.sub('[^a-zA-Z0-9_:.]', '', id)
 
-  def cache_data(self, func: Callable[[], T], id: str, bypass: bool = False) -> T:
+  def cache_data(self, func: Callable[[], T], id: str, bypass: bool = False) -> T | None:
     data: T | None = self.cache.get(id)
     if bypass or data is None: # Need to fetch
       fetched_data: T = func()
@@ -43,10 +43,21 @@ class CustomHAClient(HAClient):
     if data is not None:
       return data.copy()
     return None
+  
+  async def async_cache_data(self, func: Callable[[], Awaitable[T]], id: str, bypass: bool = False) -> T | None:
+    data: T | None = self.cache.get(id)
+    if bypass or data is None: # Need to fetch
+      fetched_data: T = await func()
+      if fetched_data is not None:
+        self.cache[id] = fetched_data
+        data = fetched_data
+    if data is not None:
+      return data.copy()
+    return None
 
   # Floors
-  def custom_get_floors(self) -> List[FloorModel]:
-    fetched_floors_json: str = self.get_rendered_template('''
+  async def async_custom_get_floors(self) -> List[FloorModel]:
+    fetched_floors_json: str = await self.async_get_rendered_template('''
     {%- set ns = namespace(floors = []) %}
     {%- for floor_id in floors() %}
       {%- set areas = floor_areas(floor_id) | list %}
@@ -65,11 +76,11 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[FloorModel]).validate_json(fetched_floors_json)
   
-  def cache_custom_get_floors(self, bypass: bool = False) -> List[FloorModel]:
-    return self.cache_data(lambda: self.custom_get_floors(), HomeAssistantCacheId.FLOORS, bypass=bypass)
+  async def cache_async_custom_get_floors(self, bypass: bool = False) -> List[FloorModel]:
+    return await self.async_cache_data(self.async_custom_get_floors, HomeAssistantCacheId.FLOORS, bypass=bypass)
   
-  def custom_get_floor(self, floor_id: str) -> Optional[FloorModel]:
-    fetched_floor_json: str = self.get_rendered_template(
+  async def async_custom_get_floor(self, floor_id: str) -> Optional[FloorModel]:
+    fetched_floor_json: str = await self.async_get_rendered_template(
     f"{"{%"}- set floor_id = '{self.escape_id(floor_id)}' {"%}"}"     
     +
     '''
@@ -92,8 +103,8 @@ class CustomHAClient(HAClient):
     return TypeAdapter(FloorModel).validate_json(fetched_floor_json)
   
   # Areas
-  def custom_get_areas(self) -> List[AreaModel]:
-    fetched_areas_json: str = self.get_rendered_template('''
+  async def async_custom_get_areas(self) -> List[AreaModel]:
+    fetched_areas_json: str = await self.async_get_rendered_template('''
     {%- set ns = namespace(areas = []) %}
     {%- for area_id in areas() %}
       {%- set entities = area_entities(area_id) | list %}
@@ -112,11 +123,11 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[AreaModel]).validate_json(fetched_areas_json)
   
-  def cache_custom_get_areas(self, bypass: bool = False) -> List[AreaModel]:
-    return self.cache_data(lambda: self.custom_get_areas(), HomeAssistantCacheId.AREAS, bypass=bypass)
+  async def cache_async_custom_get_areas(self, bypass: bool = False) -> List[AreaModel]:
+    return await self.async_cache_data(self.async_custom_get_areas, HomeAssistantCacheId.AREAS, bypass=bypass)
 
-  def custom_get_area(self, area_id: str) -> Optional[AreaModel]:
-    fetched_area_json: str = self.get_rendered_template(
+  async def async_custom_get_area(self, area_id: str) -> Optional[AreaModel]:
+    fetched_area_json: str = await self.async_get_rendered_template(
     f"{"{%"}- set area_id = '{self.escape_id(area_id)}' {"%}"}"     
     +
     '''
@@ -139,8 +150,8 @@ class CustomHAClient(HAClient):
     return TypeAdapter(AreaModel).validate_json(fetched_area_json)
   
   # Integrations
-  def custom_get_integration_entities(self, integration: str) -> List[str]:
-    return json.loads(self.get_rendered_template(
+  async def async_custom_get_integration_entities(self, integration: str) -> List[str]:
+    return json.loads(await self.async_get_rendered_template(
       f"{"{%"}- set integration = '{self.escape_id(integration)}' {"%}"}"     
       +
       '''
@@ -149,8 +160,8 @@ class CustomHAClient(HAClient):
     ))
 
   # Labels
-  def custom_get_labels(self) -> List[LabelModel]:
-    fetched_labels_json: str = self.get_rendered_template('''
+  async def async_custom_get_labels(self) -> List[LabelModel]:
+    fetched_labels_json: str = await self.async_get_rendered_template('''
     {%- set ns = namespace(labels = []) %}
     {%- for label_id in labels() %}
       {%- set areas = label_areas(label_id) | list %}
@@ -172,11 +183,11 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[LabelModel]).validate_json(fetched_labels_json)
   
-  def cache_custom_get_labels(self, bypass: bool = False) -> List[LabelModel]:
-    return self.cache_data(lambda: self.custom_get_labels(), HomeAssistantCacheId.LABELS, bypass=bypass)
+  async def cache_async_custom_get_labels(self, bypass: bool = False) -> List[LabelModel]:
+    return await self.async_cache_data(self.async_custom_get_labels, HomeAssistantCacheId.LABELS, bypass=bypass)
 
-  def custom_get_label(self, label_id: str) -> Optional[LabelModel]:
-    fetched_label_json: str = self.get_rendered_template(
+  async def async_custom_get_label(self, label_id: str) -> Optional[LabelModel]:
+    fetched_label_json: str = await self.async_get_rendered_template(
     f"{"{%"}- set label_id = '{self.escape_id(label_id)}' {"%}"}"     
     +
     '''
@@ -199,8 +210,8 @@ class CustomHAClient(HAClient):
     return TypeAdapter(LabelModel).validate_json(fetched_label_json)
   
   # Devices
-  def custom_get_devices(self) -> List[DeviceModel]:
-    fetched_devices_json: str = self.get_rendered_template('''
+  async def async_custom_get_devices(self) -> List[DeviceModel]:
+    fetched_devices_json: str = await self.async_get_rendered_template('''
     {% set devices = states | map(attribute='entity_id') | map('device_id') | unique | reject('eq',None) | list %}
     {%- set ns = namespace(devices = []) %}
     {%- for device_id in devices %}
@@ -227,11 +238,11 @@ class CustomHAClient(HAClient):
 
     return TypeAdapter(List[DeviceModel]).validate_json(fetched_devices_json)
   
-  def cache_custom_get_devices(self, bypass: bool = False) -> List[DeviceModel]:
-    return self.cache_data(lambda: self.custom_get_devices(), HomeAssistantCacheId.DEVICES, bypass=bypass)
+  async def cache_async_custom_get_devices(self, bypass: bool = False) -> List[DeviceModel]:
+    return await self.async_cache_data(self.async_custom_get_devices, HomeAssistantCacheId.DEVICES, bypass=bypass)
 
-  def custom_get_device(self, device_id: str) -> Optional[DeviceModel]:
-    fetched_device_json: str = self.get_rendered_template(
+  async def async_custom_get_device(self, device_id: str) -> Optional[DeviceModel]:
+    fetched_device_json: str = await self.async_get_rendered_template(
     f"{"{%"}- set device_id = '{self.escape_id(device_id)}' {"%}"}"     
     +
     '''
@@ -258,19 +269,19 @@ class CustomHAClient(HAClient):
     return TypeAdapter(DeviceModel).validate_json(fetched_device_json)
   
   # Entities
-  def custom_get_entities(self) -> List[EntityModel]:
-    return TypeAdapter(List[EntityModel]).validate_python(self.request("states"))
+  async def async_custom_get_entities(self) -> List[EntityModel]:
+    return TypeAdapter(List[EntityModel]).validate_python(await self.async_request("states"))
 
-  def cache_custom_get_entities(self, bypass: bool = False) -> List[EntityModel]:
-    return self.cache_data(lambda: self.custom_get_entities(), HomeAssistantCacheId.ENTITIES, bypass=bypass)
+  async def cache_async_custom_get_entities(self, bypass: bool = False) -> List[EntityModel]:
+    return await self.async_cache_data(self.async_custom_get_entities, HomeAssistantCacheId.ENTITIES, bypass=bypass)
   
-  def custom_get_entity(self, entity_id: str) -> Optional[EntityModel]:
-    return EntityModel.model_validate(self.request(f"states/{self.escape_id(entity_id)}"))
+  async def async_custom_get_entity(self, entity_id: str) -> Optional[EntityModel]:
+    return EntityModel.model_validate(await self.async_request(f"states/{self.escape_id(entity_id)}"))
   
   # Services
-  def custom_get_domains(self) -> List[DomainModel]:
+  async def async_custom_get_domains(self) -> List[DomainModel]:
     # Apply fixes to all services
-    fetched_domains = self.request("services")
+    fetched_domains = await self.async_request("services")
     for domain in fetched_domains:
       for service in domain["services"].values():
         # Fix targets (get rid of the list)
@@ -306,32 +317,32 @@ class CustomHAClient(HAClient):
     
     return TypeAdapter(List[DomainModel]).validate_python(fetched_domains)
 
-  def cache_custom_get_domains(self, bypass: bool = False) -> List[DomainModel]:
-    return self.cache_data(lambda: self.custom_get_domains(), HomeAssistantCacheId.DOMAINS, bypass=bypass)
+  async def cache_async_custom_get_domains(self, bypass: bool = False) -> List[DomainModel]:
+    return await self.async_cache_data(self.async_custom_get_domains, HomeAssistantCacheId.DOMAINS, bypass=bypass)
   
-  def custom_get_domain(self, domain_name: str) -> Optional[DomainModel]:
-    domains = self.custom_get_domains()
+  async def async_custom_get_domain(self, domain_name: str) -> Optional[DomainModel]:
+    domains: List[DomainModel] = await self.async_custom_get_domains()
     return find(lambda x: x.name == domain_name, domains)
 
   # Conversations
-  def custom_conversation(self, data) -> ConversationModel:
-    return ConversationModel.model_validate(self.request(
+  async def async_custom_conversation(self, data) -> ConversationModel:
+    return ConversationModel.model_validate(await self.async_request(
       "conversation/process",
       method="POST",
       json=data
     ))
   
   # Triggering services
-  def custom_trigger_services(self, domain: str, service: str, **service_data) -> List[EntityModel]:
-    data = self.request(
+  async def async_custom_trigger_services(self, domain: str, service: str, **service_data) -> List[EntityModel]:
+    data = await self.async_request(
       f"services/{self.escape_id(domain)}/{self.escape_id(service)}",
       method="POST",
       json=service_data
     )
     return TypeAdapter(List[EntityModel]).validate_python(data)
 
-  def custom_trigger_service_with_response(self, domain: str, service: str, **service_data) -> Tuple[List[EntityModel], dict[str, Any]]:
-    data = self.request(
+  async def async_custom_trigger_service_with_response(self, domain: str, service: str, **service_data) -> Tuple[List[EntityModel], dict[str, Any]]:
+    data = await self.async_request(
       f"services/{self.escape_id(domain)}/{self.escape_id(service)}?return_response",
       method='POST',
       json=service_data
@@ -343,8 +354,8 @@ class CustomHAClient(HAClient):
     )
   
   # Templating
-  def format_string(self, txt: str) -> str:
-    homeassistant_entities: List[EntityModel] = self.custom_get_entities()
+  async def async_format_string(self, txt: str) -> str:
+    homeassistant_entities: List[EntityModel] = await self.cache_async_custom_get_entities(bypass=True)
     if homeassistant_entities is None:
       raise Exception("No entities were returned")
 
@@ -359,9 +370,10 @@ class CustomHAClient(HAClient):
     return re.sub(r'\{([^\}]+)\}', replacer, txt)
   
   # MDI Icons
-  def get_mdi_icons(self) -> List[MDIIconMeta]:
-    result = requests.get('https://raw.githubusercontent.com/Templarian/MaterialDesign-SVG/master/meta.json')
-    return TypeAdapter(List[MDIIconMeta]).validate_python(result.json())
+  async def async_get_mdi_icons(self) -> List[MDIIconMeta]:
+    async with aiohttp.ClientSession() as session:
+      async with session.get('https://raw.githubusercontent.com/Templarian/MaterialDesign-SVG/master/meta.json') as resp:
+        return TypeAdapter(List[MDIIconMeta]).validate_python(resp.json())
   
-  def cache_get_mdi_icons(self, bypass: bool = False) -> List[MDIIconMeta]:
-    return self.cache_data(lambda: self.get_mdi_icons(), 'MDI_ICONS', bypass=bypass)
+  async def cache_async_get_mdi_icons(self, bypass: bool = False) -> List[MDIIconMeta]:
+    return await self.async_cache_data(self.async_get_mdi_icons, 'MDI_ICONS', bypass=bypass)

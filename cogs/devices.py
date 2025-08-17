@@ -33,7 +33,7 @@ class Devices(commands.Cog):
       await interaction.response.defer()
 
       try:
-        device_data: DeviceModel | None = self.bot.homeassistant_client.custom_get_device(device_id=device_id)
+        device_data: DeviceModel | None = await self.bot.homeassistant_client.async_custom_get_device(device_id=device_id)
         if device_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No device found.", ephemeral=True)
       except Exception as e:
@@ -43,7 +43,7 @@ class Devices(commands.Cog):
       area_data: AreaModel | None = None
       if device_data.area_id is not None:
         try:
-          area_data = self.bot.homeassistant_client.custom_get_area(area_id=device_data.area_id)
+          area_data = await self.bot.homeassistant_client.async_custom_get_area(area_id=device_data.area_id)
           if area_data is None:
             raise Exception("No area was returned")
         except Exception as e:
@@ -86,7 +86,7 @@ class Devices(commands.Cog):
       if len(device_data.entities) > 0:
         entities: List[str] = []
         try:
-          entities_data: List[EntityModel] = self.bot.homeassistant_client.cache_custom_get_entities()
+          entities_data: List[EntityModel] = await self.bot.homeassistant_client.cache_async_custom_get_entities()
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:

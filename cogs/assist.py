@@ -6,8 +6,10 @@ import datetime
 import os
 
 from bot import HASSDiscordBot
+from helpers import to_list
 from enums.emojis import Emoji
 from models.ConversationModel import ConversationResponseType
+from models.ServiceModel import ServiceFieldSelectorEntityFilter
 from autocompletes import require_permission_autocomplete, filtered_entity_autocomplete
 
 class Assist(commands.Cog):
@@ -28,7 +30,7 @@ class Assist(commands.Cog):
   @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
   @app_commands.autocomplete(
     conversation_agent_id=require_permission_autocomplete(
-      partial(filtered_entity_autocomplete, domain='conversation'),
+      partial(filtered_entity_autocomplete, entity_filter=to_list(ServiceFieldSelectorEntityFilter.model_validate({ 'domain': 'conversation' }))),
       check_role=False
     )
   )
@@ -51,7 +53,7 @@ class Assist(commands.Cog):
       
       # Send the request to home assistant
       try:
-        response_data = self.bot.homeassistant_client.custom_conversation(request_data)
+        response_data = await self.bot.homeassistant_client.async_custom_conversation(request_data)
       except Exception as e:
         self.bot.logger.error("Failed to reach HomeAssistant", e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to reach HomeAssistant.", ephemeral=True)

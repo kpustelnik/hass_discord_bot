@@ -24,8 +24,9 @@ class Services(commands.Cog):
       ['light', 'turn.*']
     ]
 
+  async def cog_load(self) -> None:
     try:
-      ha_domains: List[DomainModel] = self.bot.homeassistant_client.cache_custom_get_domains()
+      ha_domains: List[DomainModel] = await self.bot.homeassistant_client.cache_async_custom_get_domains()
       for domain in ha_domains:
         group = app_commands.Group(
           name=domain.domain,
@@ -125,14 +126,14 @@ class Services(commands.Cog):
       # Send the request
       try:
         try:
-          changed_entities, response_data = self.bot.homeassistant_client.custom_trigger_service_with_response(
+          changed_entities, response_data = await self.bot.homeassistant_client.async_custom_trigger_service_with_response(
             domain.domain,
             service_id,
             **final_kwargs
           )
         except RequestError:
           response_data = None
-          changed_entities = self.bot.homeassistant_client.custom_trigger_services(
+          changed_entities = await self.bot.homeassistant_client.async_custom_trigger_services(
             domain.domain,
             service_id,
             **final_kwargs

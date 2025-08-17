@@ -20,12 +20,6 @@ class HASSDiscordBot(commands.Bot):
     )
 
     self.conversation_cache = TTLCache(maxsize=100, ttl=15*60)
-
-    self.homeassistant_client = CustomHAClient(
-      os.getenv("HOMEASSISTANT_API_URL"),
-      os.getenv("HOMEASSISTANT_TOKEN"),
-      use_async=False
-    )
     self.homeassistant_url = os.getenv("HOMEASSISTANT_URL")
 
     discord_guild_id_env = os.getenv("DISCORD_GUILD_ID")
@@ -60,7 +54,7 @@ class HASSDiscordBot(commands.Bot):
   async def status_task(self) -> None:
     if self.status_template is not None:
       try:
-        new_status = self.homeassistant_client.format_string(self.status_template)
+        new_status = await self.homeassistant_client.async_format_string(self.status_template)
       except:
         new_status = "Unavailable"
       await self.change_presence(activity=discord.Game(name=new_status))
@@ -70,6 +64,11 @@ class HASSDiscordBot(commands.Bot):
     await self.wait_until_ready()
 
   async def setup_hook(self):
+    self.homeassistant_client = CustomHAClient(
+      os.getenv("HOMEASSISTANT_API_URL"),
+      os.getenv("HOMEASSISTANT_TOKEN")
+    )
+
     await self.load_cogs()
 
     self.file_logger.info(f"Logged in as {self.user.name}")

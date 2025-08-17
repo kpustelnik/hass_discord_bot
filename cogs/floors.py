@@ -34,7 +34,7 @@ class Floors(commands.Cog):
       await interaction.response.defer()
 
       try:
-        floor_data: FloorModel | None = self.bot.homeassistant_client.custom_get_floor(floor_id=floor_id)
+        floor_data: FloorModel | None = await self.bot.homeassistant_client.async_custom_get_floor(floor_id=floor_id)
         if floor_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No floor found.", ephemeral=True)
       except Exception as e:
@@ -55,7 +55,7 @@ class Floors(commands.Cog):
       if len(floor_data.areas) > 0:
         areas: List[str] = []
         try:
-          areas_data: List[AreaModel] = self.bot.homeassistant_client.cache_custom_get_areas()
+          areas_data: List[AreaModel] = await self.bot.homeassistant_client.cache_async_custom_get_areas()
           if areas_data is None:
             raise Exception("No areas were returned")
         except Exception as e:
@@ -74,7 +74,7 @@ class Floors(commands.Cog):
       if len(floor_data.entities) > 0:
         entities: List[str] = []
         try:
-          entities_data: List[EntityModel] = self.bot.homeassistant_client.cache_custom_get_entities()
+          entities_data: List[EntityModel] = await self.bot.homeassistant_client.cache_async_custom_get_entities()
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:

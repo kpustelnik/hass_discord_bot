@@ -19,7 +19,7 @@ async def get_icon_autocomplete_choices(
   current_input: str
 ) -> List[app_commands.Choice[str]]:
   try:
-    mdi_icons: List[MDIIconMeta] = bot.homeassistant_client.cache_get_mdi_icons()
+    mdi_icons: List[MDIIconMeta] = await bot.homeassistant_client.cache_async_get_mdi_icons()
     if mdi_icons is None:
       raise Exception("No icons were returned")
   except Exception as e:
@@ -65,7 +65,7 @@ async def get_label_autocomplete_choices(
   matching_labels: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
-    homeassistant_labels: List[LabelModel] = bot.homeassistant_client.cache_custom_get_labels()
+    homeassistant_labels: List[LabelModel] = await bot.homeassistant_client.cache_async_custom_get_labels()
     if homeassistant_labels is None:
       raise Exception("No labels were returned")
   except Exception as e:
@@ -97,10 +97,10 @@ async def filtered_label_autocomplete(
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
-  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
-  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
-  matching_labels = get_matching_labels(bot, matching_areas=matching_areas, matching_devices=matching_devices, matching_entities=matching_entities)
+  matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_labels: Set[str] | None = await get_matching_labels(bot, matching_areas=matching_areas, matching_devices=matching_devices, matching_entities=matching_entities)
   choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_labels=matching_labels)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -122,7 +122,7 @@ async def get_floor_autocomplete_choices(
     matching_floors: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
-    homeassistant_floors: List[FloorModel] = bot.homeassistant_client.cache_custom_get_floors()
+    homeassistant_floors: List[FloorModel] = await bot.homeassistant_client.cache_async_custom_get_floors()
     if homeassistant_floors is None:
       raise Exception("No floors were returned")
   except Exception as e:
@@ -154,10 +154,10 @@ async def filtered_floor_autocomplete(
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
-  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
-  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
-  matching_floors = get_matching_floors(bot, matching_areas=matching_areas)
+  matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_floors: Set[str] | None = await get_matching_floors(bot, matching_areas=matching_areas)
   choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_floors=matching_floors)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -179,7 +179,7 @@ async def get_area_autocomplete_choices(
   matching_areas: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
-    homeassistant_areas: List[AreaModel] = bot.homeassistant_client.cache_custom_get_areas()
+    homeassistant_areas: List[AreaModel] = await bot.homeassistant_client.cache_async_custom_get_areas()
     if homeassistant_areas is None:
       raise Exception("No areas were returned")
   except Exception as e:
@@ -211,9 +211,9 @@ async def filtered_area_autocomplete(
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
-  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
-  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
   choice_list: List[app_commands.Choice[str]] = await get_area_autocomplete_choices(bot, current_input, matching_areas=matching_areas)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -235,7 +235,7 @@ async def get_device_autocomplete_choices(
   matching_devices: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
-    homeassistant_devices: List[DeviceModel] = bot.homeassistant_client.cache_custom_get_devices()
+    homeassistant_devices: List[DeviceModel] = await bot.homeassistant_client.cache_async_custom_get_devices()
     if homeassistant_devices is None:
       raise Exception("No devices were returned")
   except Exception as e:
@@ -267,8 +267,8 @@ async def filtered_device_autocomplete(
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  matching_entities: Set[str] | None = get_matching_entities(bot, entity_filter=entity_filter)
-  matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
   choice_list: List[app_commands.Choice[str]] = await get_device_autocomplete_choices(bot, current_input, matching_devices=matching_devices)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -290,7 +290,7 @@ async def get_entity_autocomplete_choices(
   matching_entities: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
-    homeassistant_entities: List[EntityModel] = bot.homeassistant_client.cache_custom_get_entities()
+    homeassistant_entities: List[EntityModel] = await bot.homeassistant_client.cache_async_custom_get_entities()
     if homeassistant_entities is None:
       raise Exception("No entities were returned")
   except Exception as e:
@@ -321,7 +321,7 @@ async def filtered_entity_autocomplete(
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input, matching_entities=get_matching_entities(bot, entity_filter=entity_filter))
+  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input, matching_entities=await get_matching_entities(bot, entity_filter=entity_filter))
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
@@ -342,11 +342,11 @@ async def label_floor_area_device_entity_autocomplete(
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   # Get matches
-  matching_entities: Set[str] | None = get_matching_entities(bot, entity_filter=entity_filter)
-  matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
-  matching_areas: Set[str] | None = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
-  matching_floors: Set[str] | None = get_matching_floors(bot, matching_areas=matching_areas)
-  matching_labels: Set[str] | None = get_matching_labels(bot, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
+  matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_floors: Set[str] | None = await get_matching_floors(bot, matching_areas=matching_areas)
+  matching_labels: Set[str] | None = await get_matching_labels(bot, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
 
   # Create all choices
   label_choice_list = await get_label_autocomplete_choices(bot, current_input, prefix='LABEL$', display_prefix='Label: ', matching_labels=matching_labels)
@@ -403,7 +403,7 @@ def require_choice(input: str, all_choices: List[str]) -> str:
     raise Exception("Incorrect choice")
   
 # Labels, floors, area, devices, entities matching
-def get_matching_labels( # Labels base on areas, devices and entities
+async def get_matching_labels( # Labels base on areas, devices and entities
   bot: HASSDiscordBot,
   matching_entities: Optional[Set[str]],
   matching_devices: Optional[Set[str]],
@@ -413,7 +413,7 @@ def get_matching_labels( # Labels base on areas, devices and entities
     return None
   
   try:
-    homeassistant_labels: List[LabelModel] = bot.homeassistant_client.cache_custom_get_labels()
+    homeassistant_labels: List[LabelModel] = await bot.homeassistant_client.cache_async_custom_get_labels()
     if homeassistant_labels is None:
       raise Exception("No labels were returned")
   except Exception as e:
@@ -431,7 +431,7 @@ def get_matching_labels( # Labels base on areas, devices and entities
   
   return matching_labels
 
-def get_matching_floors( # Getting matching floors seems to only base on matching areas (which base on devices & entities)
+async def get_matching_floors( # Getting matching floors seems to only base on matching areas (which base on devices & entities)
     bot: HASSDiscordBot,
     matching_areas: Optional[Set[str]]
 ) -> Set[str] | None:
@@ -439,7 +439,7 @@ def get_matching_floors( # Getting matching floors seems to only base on matchin
     return None
   
   try:
-    homeassistant_floors: List[FloorModel] = bot.homeassistant_client.cache_custom_get_floors()
+    homeassistant_floors: List[FloorModel] = await bot.homeassistant_client.cache_async_custom_get_floors()
     if homeassistant_floors is None:
       raise Exception("No floors were returned")
   except Exception as e:
@@ -453,7 +453,7 @@ def get_matching_floors( # Getting matching floors seems to only base on matchin
 
   return matching_floors
 
-def get_matching_areas(
+async def get_matching_areas(
     bot: HASSDiscordBot,
     matching_entities: Optional[Set[str]],
     matching_devices: Optional[Set[str]]
@@ -462,7 +462,7 @@ def get_matching_areas(
     return None
   
   try:
-    homeassistant_areas: List[AreaModel] = bot.homeassistant_client.cache_custom_get_areas()
+    homeassistant_areas: List[AreaModel] = await bot.homeassistant_client.cache_async_custom_get_areas()
     if homeassistant_areas is None:
       raise Exception("No areas were returned")
   except Exception as e:
@@ -478,7 +478,7 @@ def get_matching_areas(
   
   return matching_areas
 
-def get_matching_devices(
+async def get_matching_devices(
   bot: HASSDiscordBot,
   matching_entities: Optional[Set[str]],
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
@@ -487,7 +487,7 @@ def get_matching_devices(
     return None
   
   try:
-    homeassistant_devices: List[DeviceModel] = bot.homeassistant_client.cache_custom_get_devices()
+    homeassistant_devices: List[DeviceModel] = await bot.homeassistant_client.cache_async_custom_get_devices()
     if homeassistant_devices is None:
       raise Exception("No devices were returned")
   except Exception as e:
@@ -503,7 +503,7 @@ def get_matching_devices(
       filter_devices: List[DeviceModel] = homeassistant_devices
       if current_filter.integration is not None:
         try:
-          integration_entities: Set[str] = set(bot.homeassistant_client.custom_get_integration_entities(current_filter.integration))
+          integration_entities: Set[str] = set(await bot.homeassistant_client.async_custom_get_integration_entities(current_filter.integration))
         except Exception as e:
           bot.logger.error("Failed to fetch integration entities", type(e), e)
           return set()
@@ -524,7 +524,7 @@ def get_matching_devices(
 
   return set([ device.id for device in homeassistant_devices ])  
 
-def get_matching_entities(
+async def get_matching_entities(
     bot: HASSDiscordBot,
     entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> Set[str] | None:
@@ -532,7 +532,7 @@ def get_matching_entities(
     return None # Function returns None if there is no filter
   
   try:
-    homeassistant_entities: List[EntityModel] = bot.homeassistant_client.cache_custom_get_entities()
+    homeassistant_entities: List[EntityModel] = await bot.homeassistant_client.cache_async_custom_get_entities()
     if homeassistant_entities is None:
       raise Exception("No entities were returned")
   except Exception as e:
@@ -544,7 +544,7 @@ def get_matching_entities(
     filter_entities: List[EntityModel] = homeassistant_entities
     if current_filter.integration is not None:
       try:
-        integration_entities: Set[str] = set(bot.homeassistant_client.custom_get_integration_entities(current_filter.integration))
+        integration_entities: Set[str] = set(await bot.homeassistant_client.async_custom_get_integration_entities(current_filter.integration))
       except Exception as e:
         bot.logger.error("Failed to fetch integration entities", type(e), e)
         return set()

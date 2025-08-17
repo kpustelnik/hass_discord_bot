@@ -35,7 +35,7 @@ class Labels(commands.Cog):
       await interaction.response.defer()
 
       try:
-        label_data: LabelModel | None = self.bot.homeassistant_client.custom_get_label(label_id=label_id)
+        label_data: LabelModel | None = await self.bot.homeassistant_client.async_custom_get_label(label_id=label_id)
         if label_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No label found.", ephemeral=True)
       except Exception as e:
@@ -60,7 +60,7 @@ class Labels(commands.Cog):
       if len(label_data.areas) > 0:
         areas: List[str] = []
         try:
-          areas_data: List[AreaModel] = self.bot.homeassistant_client.cache_custom_get_areas()
+          areas_data: List[AreaModel] = await self.bot.homeassistant_client.cache_async_custom_get_areas()
           if areas_data is None:
             raise Exception("No areas were returned")
         except Exception as e:
@@ -80,7 +80,7 @@ class Labels(commands.Cog):
       if len(label_data.devices) > 0:
         devices: List[str] = []
         try:
-          devices_data: List[DeviceModel] = self.bot.homeassistant_client.cache_custom_get_devices()
+          devices_data: List[DeviceModel] = await self.bot.homeassistant_client.cache_async_custom_get_devices()
           if devices_data is None:
             raise Exception("No devices were returned")
         except Exception as e:
@@ -100,7 +100,7 @@ class Labels(commands.Cog):
       if len(label_data.entities) > 0:
         entities: List[str] = []
         try:
-          entities_data: List[EntityModel] = self.bot.homeassistant_client.cache_custom_get_entities()
+          entities_data: List[EntityModel] = await self.bot.homeassistant_client.cache_async_custom_get_entities()
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:
