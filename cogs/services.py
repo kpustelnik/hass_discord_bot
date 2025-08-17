@@ -5,12 +5,12 @@ from discord import app_commands
 import yaml
 import json
 import inspect
-from helpers import shorten, shorten_argument_rename, to_list
+from helpers import shorten, shorten_argument_rename, to_list, is_matching
 import datetime
 import re
 
 from bot import HASSDiscordBot
-from autocompletes import filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
+from autocompletes import filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldCollection, ServiceField
@@ -39,7 +39,7 @@ class Services(commands.Cog):
         for service_id, service in domain.services.items():
           if self.check_whitelist(domain.domain, service_id):
             any_added = True
-            self.create_service_command(group, domain, service_id, service)
+            await self.create_service_command(group, domain, service_id, service)
 
         if any_added:
           self.bot.tree.add_command(group)
@@ -78,7 +78,7 @@ class Services(commands.Cog):
         raise ValueError("Incorrect input elements")
     return parsed_object
   
-  def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
+  async def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
     constants: Dict[str, Any] = {}
     transformers: Dict[str, Callable[[Any], Any]] = {}
@@ -206,8 +206,8 @@ class Services(commands.Cog):
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(
         label_floor_area_device_entity_autocomplete,
-        entity_filter=service.target.entity,
-        device_filter=service.target.device
+        entity_filter=to_list(service.target.entity),
+        device_filter=to_list(service.target.device)
       )
       all_params.add('service_action_target')
 
@@ -228,7 +228,32 @@ class Services(commands.Cog):
               is_hidden = False
               field_type = None
               default_value = None
-              if field.selector.text is not None: # ServiceFieldSelectorText
+              if field.selector.area is not None: # ServiceFieldSelectorArea
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if field.selector.area.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str)) # TODO: Better support for multiple (autocomplete split by ,)
+                else:
+                  autocomplete_replacements[field_id] = partial(filtered_area_autocomplete, entity_filter=to_list(field.selector.area.entity), device_filter=to_list(field.selector.area.device))
+
+              elif field.selector.attribute is not None: # ServiceFieldSelectorAttribute
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                homeassistant_entities = await self.bot.homeassistant_client.cache_async_custom_get_entities()
+                attributes: Set[str] = set()
+                if field.selector.attribute.entity_id is not None:
+                  for entity in homeassistant_entities:
+                    if is_matching(field.selector.attribute.entity_id, entity.entity_id):
+                      for attribute, _ in entity.attributes.items():
+                        if field.selector.attribute.hide_attributes is None or attribute not in field.selector.attribute.hide_attributes:
+                          attributes.add(attribute)
+
+                autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=list(attributes))
+                transformers[field_id] = partial(require_choice, all_choices=field_options)
+
+              elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
+                field_type = bool
+                if field.default is not None: default_value = bool(field.default)
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.text.multiple == True:
@@ -288,10 +313,6 @@ class Services(commands.Cog):
                   else: # Use literal type (choices implemented on Discord)
                     field_type = Literal[*field_options]
                   transformers[field_id] = partial(require_choice, all_choices=field_options) # Always confirm if the choice is valid
-
-              elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
-                field_type = bool
-                if field.default is not None: default_value = bool(field.default)
 
               elif field.selector.theme is not None: # ServiceFieldSelectorTheme
                 field_type = str
