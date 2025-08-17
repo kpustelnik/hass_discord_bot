@@ -31,7 +31,7 @@ class Floors(commands.Cog):
       return
     
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       try:
         floor_data: FloorModel | None = await self.bot.homeassistant_client.async_custom_get_floor(floor_id=floor_id)

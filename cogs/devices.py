@@ -30,7 +30,7 @@ class Devices(commands.Cog):
       return
 
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       try:
         device_data: DeviceModel | None = await self.bot.homeassistant_client.async_custom_get_device(device_id=device_id)

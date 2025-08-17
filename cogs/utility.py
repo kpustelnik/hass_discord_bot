@@ -58,7 +58,7 @@ class Utility(commands.Cog):
 
     extension_name = f"cogs.{cog_name}"
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
       try:
         await self.bot.reload_extension(extension_name)
         await interaction.followup.send(f"{Emoji.SUCCESS} Successfully reloaded the extension.")

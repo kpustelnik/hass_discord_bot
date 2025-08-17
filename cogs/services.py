@@ -87,7 +87,7 @@ class Services(commands.Cog):
       if not await self.bot.check_user_guild(interaction, check_role=True):
         return
     
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       # Apply the constants
       for id, value in constants.items():

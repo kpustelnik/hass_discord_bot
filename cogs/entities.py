@@ -32,7 +32,7 @@ class Entities(commands.Cog):
       return
 
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       try:
         entity_data: EntityModel | None = await self.bot.homeassistant_client.async_custom_get_entity(entity_id=entity_id)

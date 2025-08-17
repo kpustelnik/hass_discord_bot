@@ -32,7 +32,7 @@ class Labels(commands.Cog):
       return
 
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       try:
         label_data: LabelModel | None = await self.bot.homeassistant_client.async_custom_get_label(label_id=label_id)

@@ -31,7 +31,7 @@ class Areas(commands.Cog):
       return
     
     try:
-      await interaction.response.defer()
+      await interaction.response.defer(thinking=True)
 
       try:
         area_data: AreaModel | None = await self.bot.homeassistant_client.async_custom_get_area(area_id=area_id)
