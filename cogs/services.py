@@ -5,7 +5,7 @@ from discord import app_commands
 import yaml
 import json
 import inspect
-from helpers import shorten, shorten_argument_rename
+from helpers import shorten, shorten_argument_rename, to_list
 import datetime
 import re
 

@@ -1,8 +1,16 @@
 import re
 from Levenshtein import distance as levenshtein_distance
-from typing import TypeVar, Callable, Iterable
+from typing import TypeVar, Callable, Iterable, List
 
 T = TypeVar('T')
+
+def to_list(obj: T | List[T] | None) -> List[T] | None:
+  if obj is None:
+    return None
+  return [obj] if not isinstance(obj, list) else obj
+
+def is_matching(spec: T | List[T], val: T) -> bool:
+  return val in spec if isinstance(spec, list) else val == spec
 
 def get_domain_from_entity_id(entity_id: str) -> str | None:
   pos = entity_id.find('.')

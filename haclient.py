@@ -40,7 +40,9 @@ class CustomHAClient(HAClient):
       if fetched_data is not None:
         self.cache[id] = fetched_data
         data = fetched_data
-    return data
+    if data is not None:
+      return data.copy()
+    return None
 
   # Floors
   def custom_get_floors(self) -> List[FloorModel]:

@@ -66,10 +66,10 @@ class ServiceFieldSelectorTextType(str, Enum):
   COLOR = 'color'
 
 # Selectors
-class ServiceFieldSelectorAction(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorAction(BaseModel, extra='forbid'): # not supported (would require selecting target etc. basing on the action selected)
   optionsInSidebar: Optional[bool] = None
 
-class ServiceFieldSelectorAddon(BaseModel, extra='forbid'): # not supported
+class ServiceFieldSelectorAddon(BaseModel, extra='forbid'): # not supported (no HACS to test)
   name: Optional[str] = None
   slug: Optional[str] = None
 

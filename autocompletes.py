@@ -3,12 +3,13 @@ from discord import app_commands
 from typing import List, Optional, Set
 from bot import HASSDiscordBot
 
-from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id
+from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id, is_matching
 from models.FloorModel import FloorModel
 from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
+from models.ServiceModel import ServiceFieldSelectorEntityFilter, ServiceFieldSelectorDeviceFilter
 from models.MDIIconMeta import MDIIconMeta
 from enums.emojis import Emoji
 
@@ -61,7 +62,7 @@ async def get_label_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_labels: Set[str] | None = None
+  matching_labels: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_labels: List[LabelModel] = bot.homeassistant_client.cache_custom_get_labels()
@@ -106,7 +107,7 @@ async def get_floor_autocomplete_choices(
     current_input: str,
     prefix: str = '',
     display_prefix: str = '',
-    matching_floors: Set[str] | None = None
+    matching_floors: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_floors: List[FloorModel] = bot.homeassistant_client.cache_custom_get_floors()
@@ -151,7 +152,7 @@ async def get_area_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_areas: Set[str] | None = None
+  matching_areas: Optional[Set[str]] = None,
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_areas: List[AreaModel] = bot.homeassistant_client.cache_custom_get_areas()
@@ -180,8 +181,8 @@ async def get_area_autocomplete_choices(
   return choice_list
   
 async def area_autocomplete(
-    interaction: discord.Interaction,
-    current_input: str
+  interaction: discord.Interaction,
+  current_input: str
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   choice_list: List[app_commands.Choice[str]] = await get_area_autocomplete_choices(bot, current_input)
@@ -196,7 +197,7 @@ async def get_device_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_devices: Set[str] | None = None,
+  matching_devices: Optional[Set[str]] = None,
   integration: Optional[str] = None,
   domain: Optional[str] = None
 ) -> List[app_commands.Choice[str]]:
@@ -269,7 +270,7 @@ async def get_entity_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_entities: Set[str] | None = None,
+  matching_entities: Optional[Set[str]] = None,
   integration: Optional[str] = None,
   domain: Optional[str] = None
 ) -> List[app_commands.Choice[str]]:
@@ -408,9 +409,9 @@ def require_choice(input: str, all_choices: List[str]) -> str:
 # Labels, floors, area, devices, entities matching
 def get_matching_labels(
   bot: HASSDiscordBot,
-  matching_entities: Set[str] | None,
-  matching_devices: Set[str] | None,
-  matching_areas: Set[str] | None
+  matching_entities: Optional[Set[str]],
+  matching_devices: Optional[Set[str]],
+  matching_areas: Optional[Set[str]]
 ) -> Set[str] | None:
   if matching_entities is None and matching_devices is None and matching_areas is None:
     return None
@@ -436,8 +437,8 @@ def get_matching_labels(
 
 def get_matching_floors(
     bot: HASSDiscordBot,
-    matching_entities: Set[str] | None,
-    matching_areas: Set[str] | None
+    matching_entities: Optional[Set[str]],
+    matching_areas: Optional[Set[str]]
 ) -> Set[str] | None:
   if matching_entities is None and matching_areas is None:
     return None
@@ -452,7 +453,7 @@ def get_matching_floors(
   
   matching_floors = set()
   for floor in homeassistant_floors:
-    if matching_areas is not None and len(set(floor.areas).intersection(matching_floors)) != 0:
+    if matching_areas is not None and len(set(floor.areas).intersection(matching_areas)) != 0:
       matching_floors.add(floor.id)
     elif matching_entities is not None and len(set(floor.entities).intersection(matching_entities)) != 0:
       matching_floors.add(floor.id)
@@ -461,8 +462,8 @@ def get_matching_floors(
 
 def get_matching_areas(
     bot: HASSDiscordBot,
-    matching_entities: Set[str] | None,
-    matching_devices: Set[str] | None
+    matching_entities: Optional[Set[str]],
+    matching_devices: Optional[Set[str]]
 ) -> Set[str] | None:
   if matching_entities is None and matching_devices is None:
     return None
@@ -487,9 +488,10 @@ def get_matching_areas(
 
 def get_matching_devices(
   bot: HASSDiscordBot,
-  matching_entities: Set[str] | None
+  matching_entities: Optional[Set[str]],
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> Set[str] | None:
-  if matching_entities is None:
+  if matching_entities is None and (device_filter is None or len(device_filter) == 0):
     return None
   
   try:
@@ -498,22 +500,44 @@ def get_matching_devices(
       raise Exception("No devices were returned")
   except Exception as e:
     bot.logger.error("Failed to fetch devices", e)
-    return []
+    return set()
   
-  return set([
-    device.id
-    for device in filter(lambda x: len(set(x.entities).intersection(matching_entities)) != 0, homeassistant_devices)
-  ])
+  if matching_entities is not None:
+    homeassistant_devices = filter(lambda x: len(set(x.entities).intersection(matching_entities)) != 0, homeassistant_devices)
   
+  if not (device_filter is None or len(device_filter) == 0):
+    filter_matching_devices: Set[DeviceModel] = set()
+    for current_filter in device_filter:
+      filter_devices: List[DeviceModel] = homeassistant_devices
+      if current_filter.integration is not None:
+        try:
+          integration_entities: Set[str] = set(bot.homeassistant_client.custom_get_integration_entities(current_filter.integration))
+        except Exception as e:
+          bot.logger.error("Failed to fetch integration entities", type(e), e)
+          return set()
+        # I don't think it's currently possible to fetch the device's config entry and it's related integration?
+        filter_devices = filter(lambda x: len(integration_entities.intersection(set(x.entities))) != 0, filter_devices) # Any of the device's entities should belong to the integration
+
+      if current_filter.manufacturer is not None:
+        filter_devices = filter(lambda x: x.manufacturer is not None and x.manufacturer == current_filter.manufacturer, filter_devices)
+
+      if current_filter.model is not None:
+        filter_devices = filter(lambda x: x.model is not None and x.model == current_filter.model, filter_devices)
+
+      if current_filter.model_id is not None:
+        filter_devices = filter(lambda x: x.model_id is not None and x.model_id == current_filter.model_id, filter_devices)
+
+      filter_matching_devices.update(filter_devices)
+    homeassistant_devices = list(filter_matching_devices)
+
+  return set([ device.id for device in homeassistant_devices ])  
 
 def get_matching_entities(
     bot: HASSDiscordBot,
-    domain: Optional[List[str]] = None,
-    supported_features: Optional[List[int] | int] = None,
-    integration: Optional[str] = None
+    entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> Set[str] | None:
-  if domain is None and supported_features is None and integration is None:
-    return None # Returns None if all entities are passing
+  if entity_filter is None or len(entity_filter) == 0:
+    return None # Function returns None if there is no filter
   
   try:
     homeassistant_entities: List[EntityModel] = bot.homeassistant_client.cache_custom_get_entities()
@@ -521,43 +545,43 @@ def get_matching_entities(
       raise Exception("No entities were returned")
   except Exception as e:
     bot.logger.error("Failed to fetch entities", type(e), e)
-    return []
+    return set()
   
-  integration_entities: List[str] | None = None
-  try:
-    if integration is not None:
-      integration_entities: List[str] = bot.homeassistant_client.custom_get_integration_entities(integration)
-  except Exception as e:
-    bot.logger.error("Failed to fetch integration entities", type(e), e)
-    return []
-  
-  passing_entities: Set[str] = set()
-  for entity in homeassistant_entities:
-    entity_domain: str | None = get_domain_from_entity_id(entity_id=entity.entity_id)
-    if domain is not None:
-      if entity_domain is None or entity_domain not in domain:
-        continue # Condition not matching, skip
+  filter_matching_entities: Set[str] = set()
+  for current_filter in entity_filter:
+    filter_entities: List[EntityModel] = homeassistant_entities
+    if current_filter.integration is not None:
+      try:
+        integration_entities: Set[str] = set(bot.homeassistant_client.custom_get_integration_entities(current_filter.integration))
+      except Exception as e:
+        bot.logger.error("Failed to fetch integration entities", type(e), e)
+        return set()
+      filter_entities = filter(lambda x: x.entity_id in integration_entities, filter_entities)
     
-    if supported_features is not None:
-      entity_supported_features = entity.attributes.get('supported_features')
-      if entity_supported_features is not None and isinstance(entity_supported_features, int):
-        any_matching = False
-        if isinstance(supported_features, int):
-          any_matching = supported_features & entity_supported_features != 0
-        elif isinstance(supported_features, list):
-          for feature in supported_features:
-            if feature & entity_supported_features != 0:
-              any_matching = True
-              break
-        
-        if not any_matching:
-          continue # Required feature is not supported, skip
-      else:
-        continue # No supported features, skip
-    
-    if integration_entities is not None:
-      if entity.entity_id not in integration_entities:
-        continue # Entity not in integration, skip
+    if current_filter.domain is not None: # Remove entities which have incorrect domain
+      filter_entities = filter(lambda x: is_matching(current_filter.domain, get_domain_from_entity_id(x.entity_id)), filter_entities)
 
-    passing_entities.add(entity.entity_id)
-  return passing_entities
+    if current_filter.device_class is not None: # Remove entities which have incorrect device_class (or don't have it)
+      filter_entities = filter(lambda x: (device_class := x.attributes.get('device_class') is not None and is_matching(current_filter.device_class, device_class)), filter_entities)
+    
+    if current_filter.supported_features is not None: # Remove entities which don't have required features
+      new_filter_entities: List[EntityModel] = []
+      for entity in filter_entities:
+        entity_supported_features = entity.attributes.get('supported_features')
+        if entity_supported_features is not None and isinstance(entity_supported_features, int):
+          any_matching = False
+          if isinstance(current_filter.supported_features, int):
+            any_matching = current_filter.supported_features & entity_supported_features != 0
+          elif isinstance(current_filter.supported_features, list):
+            for feature in current_filter.supported_features:
+              if feature & entity_supported_features != 0:
+                any_matching = True
+                break
+          
+          if any_matching:
+            new_filter_entities.append(entity)
+      filter_entities = new_filter_entities
+
+    filter_matching_entities.update([ x.entity_id for x in filter_entities ])
+
+  return filter_matching_entities
