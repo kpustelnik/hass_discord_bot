@@ -90,16 +90,28 @@ async def get_label_autocomplete_choices(
   ]
   return choice_list
   
-async def label_autocomplete(
+async def filtered_label_autocomplete(
   interaction: discord.Interaction,
-  current_input: str
+  current_input: str,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_label_autocomplete_choices(bot, current_input)
+  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_labels = get_matching_labels(bot, matching_areas=matching_areas, matching_devices=matching_devices, matching_entities=matching_entities)
+  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_labels=matching_labels)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
   return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+
+async def label_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str
+) -> List[app_commands.Choice[str]]:
+  return await filtered_label_autocomplete(interaction, current_input)
 
 # Floors
 async def get_floor_autocomplete_choices(
@@ -134,17 +146,29 @@ async def get_floor_autocomplete_choices(
     for floor in checked_floors
   ]
   return choice_list
-  
-async def floor_autocomplete(
-    interaction: discord.Interaction,
-    current_input: str
+
+async def filtered_floor_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input)
+  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  matching_floors = get_matching_floors(bot, matching_areas=matching_areas)
+  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_floors=matching_floors)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
   return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  
+async def floor_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str
+) -> List[app_commands.Choice[str]]:
+  return await filtered_floor_autocomplete(interaction, current_input)
 
 # Areas
 async def get_area_autocomplete_choices(
@@ -152,7 +176,7 @@ async def get_area_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_areas: Optional[Set[str]] = None,
+  matching_areas: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_areas: List[AreaModel] = bot.homeassistant_client.cache_custom_get_areas()
@@ -179,17 +203,28 @@ async def get_area_autocomplete_choices(
     for area in checked_areas
   ]
   return choice_list
+
+async def filtered_area_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
+) -> List[app_commands.Choice[str]]:
+  bot: HASSDiscordBot = interaction.client
+  matching_entities = get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  matching_areas = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
+  choice_list: List[app_commands.Choice[str]] = await get_area_autocomplete_choices(bot, current_input, matching_areas=matching_areas)
+  choice_list.sort(key=lambda x: x[0], reverse=True)
+
+  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
   
 async def area_autocomplete(
   interaction: discord.Interaction,
   current_input: str
 ) -> List[app_commands.Choice[str]]:
-  bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_area_autocomplete_choices(bot, current_input)
-  choice_list.sort(key=lambda x: x[0], reverse=True)
-
-  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
-  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  return await filtered_area_autocomplete(interaction, current_input)
 
 # Devices
 async def get_device_autocomplete_choices(
@@ -197,9 +232,7 @@ async def get_device_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_devices: Optional[Set[str]] = None,
-  integration: Optional[str] = None,
-  domain: Optional[str] = None
+  matching_devices: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_devices: List[DeviceModel] = bot.homeassistant_client.cache_custom_get_devices()
@@ -210,19 +243,6 @@ async def get_device_autocomplete_choices(
     return []
     
   checked_devices = filter(lambda x: x.id in matching_devices, homeassistant_devices) if matching_devices is not None else homeassistant_devices
-  
-  # Filter entities not belonging to specified integration
-  if integration is not None:
-    try:
-      integration_entities: Set[str] = set(bot.homeassistant_client.custom_get_integration_entities(integration))
-    except Exception as e:
-      bot.logger.error("Failed to fetch integration entities", type(e), e)
-      return []
-    checked_devices = filter(lambda x: integration_entities.intersection(set(x.entities)), checked_devices)
-
-  # Filter entities not belonging to specified domain    
-  if domain is not None:
-    checked_devices = filter(lambda x: any(get_domain_from_entity_id(entity_id) == domain for entity_id in x.entities), checked_devices)
 
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -240,29 +260,26 @@ async def get_device_autocomplete_choices(
   ]
   return choice_list
   
-async def device_autocomplete(
+async def filtered_device_autocomplete(
   interaction: discord.Interaction,
-  current_input: str
+  current_input: str,
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_device_autocomplete_choices(bot, current_input)
+  matching_entities: Set[str] | None = get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
+  choice_list: List[app_commands.Choice[str]] = await get_device_autocomplete_choices(bot, current_input, matching_devices=matching_devices)
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
   return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
   
-async def filtered_device_autocomplete(
+async def device_autocomplete(
   interaction: discord.Interaction,
-  current_input: str,
-  integration: Optional[str] = None,
-  domain: Optional[str] = None
+  current_input: str
 ) -> List[app_commands.Choice[str]]:
-  bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_device_autocomplete_choices(bot, current_input, integration=integration, domain=domain)
-  choice_list.sort(key=lambda x: x[0], reverse=True)
-
-  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
-  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  return await filtered_device_autocomplete(interaction, current_input)
 
 # Entities
 async def get_entity_autocomplete_choices(
@@ -270,9 +287,7 @@ async def get_entity_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_entities: Optional[Set[str]] = None,
-  integration: Optional[str] = None,
-  domain: Optional[str] = None
+  matching_entities: Optional[Set[str]] = None
 ) -> List[app_commands.Choice[str]]:
   try:
     homeassistant_entities: List[EntityModel] = bot.homeassistant_client.cache_custom_get_entities()
@@ -283,19 +298,6 @@ async def get_entity_autocomplete_choices(
     return []
   
   checked_entities = filter(lambda x: x.entity_id in matching_entities, homeassistant_entities) if matching_entities is not None else homeassistant_entities
-  
-  # Filter entities not belonging to specified integration
-  if integration is not None:
-    try:
-      integration_entities: List[str] = bot.homeassistant_client.custom_get_integration_entities(integration)
-    except Exception as e:
-      bot.logger.error("Failed to fetch integration entities", type(e), e)
-      return []
-    checked_entities = filter(lambda x: x.entity_id in integration_entities, checked_entities)
-
-  # Filter entities not belonging to specified domain    
-  if domain is not None:
-    checked_entities = filter(lambda x: get_domain_from_entity_id(x.entity_id) == domain, checked_entities)
 
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -313,44 +315,37 @@ async def get_entity_autocomplete_choices(
   ]
   return choice_list
 
+async def filtered_entity_autocomplete(
+  interaction: discord.Interaction,
+  current_input: str,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
+) -> List[app_commands.Choice[str]]:
+  bot: HASSDiscordBot = interaction.client
+  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input, matching_entities=get_matching_entities(bot, entity_filter=entity_filter))
+  choice_list.sort(key=lambda x: x[0], reverse=True)
+
+  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
+  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+
 async def entity_autocomplete(
   interaction: discord.Interaction,
   current_input: str
 ) -> List[app_commands.Choice[str]]:
-  bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input)
-  choice_list.sort(key=lambda x: x[0], reverse=True)
-
-  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
-  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
-
-async def filtered_entity_autocomplete(
-  interaction: discord.Interaction,
-  current_input: str,
-  integration: Optional[str] = None,
-  domain: Optional[str] = None
-) -> List[app_commands.Choice[str]]:
-  bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input, integration=integration, domain=domain)
-  choice_list.sort(key=lambda x: x[0], reverse=True)
-
-  min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
-  return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+  return await filtered_entity_autocomplete(interaction, current_input)
 
 # Combined
 async def label_floor_area_device_entity_autocomplete(
   interaction: discord.Interaction,
   current_input: str,
-  domain: Optional[List[str]] = None,
-  supported_features: Optional[List[int] | int] = None,
-  integration: Optional[str] = None
+  device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None,
+  entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   # Get matches
-  matching_entities: Set[str] | None = get_matching_entities(bot, domain=domain, supported_features=supported_features, integration=integration)
-  matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities)
+  matching_entities: Set[str] | None = get_matching_entities(bot, entity_filter=entity_filter)
+  matching_devices: Set[str] | None = get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
   matching_areas: Set[str] | None = get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
-  matching_floors: Set[str] | None = get_matching_floors(bot, matching_entities=matching_entities, matching_areas=matching_areas)
+  matching_floors: Set[str] | None = get_matching_floors(bot, matching_areas=matching_areas)
   matching_labels: Set[str] | None = get_matching_labels(bot, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
 
   # Create all choices
@@ -359,6 +354,7 @@ async def label_floor_area_device_entity_autocomplete(
   area_choice_list = await get_area_autocomplete_choices(bot, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas)
   device_choice_list = await get_device_autocomplete_choices(bot, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices)
   entity_choice_list = await get_entity_autocomplete_choices(bot, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
+  
   choice_list = area_choice_list + device_choice_list + entity_choice_list + floor_choice_list + label_choice_list
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
@@ -407,7 +403,7 @@ def require_choice(input: str, all_choices: List[str]) -> str:
     raise Exception("Incorrect choice")
   
 # Labels, floors, area, devices, entities matching
-def get_matching_labels(
+def get_matching_labels( # Labels base on areas, devices and entities
   bot: HASSDiscordBot,
   matching_entities: Optional[Set[str]],
   matching_devices: Optional[Set[str]],
@@ -435,12 +431,11 @@ def get_matching_labels(
   
   return matching_labels
 
-def get_matching_floors(
+def get_matching_floors( # Getting matching floors seems to only base on matching areas (which base on devices & entities)
     bot: HASSDiscordBot,
-    matching_entities: Optional[Set[str]],
     matching_areas: Optional[Set[str]]
 ) -> Set[str] | None:
-  if matching_entities is None and matching_areas is None:
+  if matching_areas is None:
     return None
   
   try:
@@ -453,9 +448,7 @@ def get_matching_floors(
   
   matching_floors = set()
   for floor in homeassistant_floors:
-    if matching_areas is not None and len(set(floor.areas).intersection(matching_areas)) != 0:
-      matching_floors.add(floor.id)
-    elif matching_entities is not None and len(set(floor.entities).intersection(matching_entities)) != 0:
+    if len(set(floor.areas).intersection(matching_areas)) != 0:
       matching_floors.add(floor.id)
 
   return matching_floors
@@ -484,7 +477,6 @@ def get_matching_areas(
       matching_areas.add(area.id)
   
   return matching_areas
-
 
 def get_matching_devices(
   bot: HASSDiscordBot,

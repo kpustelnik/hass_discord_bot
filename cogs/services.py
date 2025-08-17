@@ -205,9 +205,8 @@ class Services(commands.Cog):
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(
         label_floor_area_device_entity_autocomplete,
-        domain=service.target.entity.domain,
-        supported_features=service.target.entity.supported_features,
-        integration=service.target.entity.integration
+        entity_filter=service.target.entity,
+        device_filter=service.target.device
       )
       all_params.add('service_action_target')
 
