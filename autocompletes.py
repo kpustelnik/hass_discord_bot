@@ -1,8 +1,11 @@
 import discord
 from discord import app_commands
-from typing import List, Optional, Set, Any
-from bot import HASSDiscordBot
+from typing import List, Optional, Set, Any, Callable, Awaitable
+import base62
+import re
+from cachetools import TTLCache
 
+from bot import HASSDiscordBot
 from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id, is_matching
 from models.FloorModel import FloorModel
 from models.AreaModel import AreaModel
@@ -337,6 +340,8 @@ async def entity_autocomplete(
 async def label_floor_area_device_entity_autocomplete(
   interaction: discord.Interaction,
   current_input: str,
+  except_values: Optional[List[str]] = None,
+  *,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
@@ -356,10 +361,103 @@ async def label_floor_area_device_entity_autocomplete(
   entity_choice_list = await get_entity_autocomplete_choices(bot, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
   
   choice_list = area_choice_list + device_choice_list + entity_choice_list + floor_choice_list + label_choice_list
+  if except_values is not None:
+    choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
   return [x[1] for x in choice_list[:bot.MAX_AUTOCOMPLETE_CHOICES] if x[0] >= min_score]
+
+# Multiple autocomplete
+class MultipleAutocompleteData():
+  cache_limit: int = 10e10
+  cache = TTLCache(maxsize=cache_limit, ttl=15*60)
+  last_id: int = 0
+
+  @classmethod
+  def next_cache_id(cl) -> int:
+    cid = cl.last_id = (cl.last_id % (2*cl.cache_limit)) + 1
+    return cid
+  
+  @classmethod
+  def get_by_id(cl, id: int) -> Optional["MultipleAutocompleteData"]:
+    return cl.cache.get(id)
+  
+  @classmethod
+  def get_by_short_id(cl, short_id: str) -> Optional["MultipleAutocompleteData"]:
+    return cl.get_by_id(base62.decode(short_id))
+
+  def __init__(self, data: List[str], creator_id: Optional[int]):
+    self.id = int(self.next_cache_id())
+    self.data = data
+    self.creator_id = creator_id
+
+    self.cache[self.id] = self
+
+  def get_short_id(self):
+    return base62.encode(self.id)
+
+  def generate_suffix(self):
+    return f'![#{str(len(self.data))} {str(self.get_short_id())}] >'
+  
+  suffix_regex = re.compile(r'\!\[(\#\d+ )?([a-zA-Z0-9]+)\]( +\>)?')
+
+MULTIPLE_ALWAYS_ADD_RETURN = True
+async def multiple_autocomplete(
+    interaction: discord.Interaction,
+    current_input: str,
+    func: Callable[[discord.Interaction, str, List[Any]], Awaitable[List[app_commands.Choice[str]]]]
+) -> List[app_commands.Choice[str]]:
+  re_match = MultipleAutocompleteData.suffix_regex.search(current_input)
+
+  madata: MultipleAutocompleteData | None = None
+  if re_match is not None:
+    madata = MultipleAutocompleteData.get_by_short_id(re_match.group(2))
+    if madata is None or madata.creator_id != interaction.user.id: return [] # Data expired; no suggestions, need to restart
+
+  if re_match is not None and re_match.groups()[2] == None: # Pop last item
+    new_data = madata.data[:-1]
+    if len(new_data) == 0: return []
+
+    new_madata = MultipleAutocompleteData(new_data, interaction.user.id)
+    return [app_commands.Choice(name=shorten_option_name('Remove last', suffix=f' {new_madata.generate_suffix()}'), value=new_madata.get_short_id())]
+
+  actual_input = current_input if re_match is None else current_input[re_match.span()[1]:]
+  prev_data: List[Any] = [] if madata is None else madata.data
+  func_choices = await func(interaction, actual_input, prev_data)
+
+  new_choices: List[app_commands.Choice] = []
+  for choice in func_choices:
+    new_data = prev_data.copy()
+    new_data.append(choice.value)
+    new_madata = MultipleAutocompleteData(new_data, interaction.user.id)
+    new_choices.append(
+      app_commands.Choice(
+        name=shorten_option_name(f'{choice.name}', suffix=f' {new_madata.generate_suffix()}'),
+        value=new_madata.get_short_id()
+      )
+    )
+
+  if MULTIPLE_ALWAYS_ADD_RETURN and len(prev_data) > 1:
+    new_choices = new_choices[:24]
+    prev_madata = MultipleAutocompleteData(prev_data[:-1], interaction.user.id)
+    new_choices.append(
+      app_commands.Choice(
+        name=shorten_option_name('Remove last', suffix=f' {prev_madata.generate_suffix()}'),
+        value=prev_madata.get_short_id()
+      )
+    )
+  
+  return new_choices
+
+def transform_multiple_autocomplete(value: str, interaction: discord.Interaction) -> List[Any]:
+  bot: HASSDiscordBot = interaction.client
+  madata = MultipleAutocompleteData.get_by_short_id(value)
+  if madata is None:
+    raise Exception("Missing multiple autocomplete data. Please try again.")
+  
+  bot.file_logger.info(f'Expanding `{value}` to `{str(madata.data)}`.')
+  return madata.data
 
 # Custom
 async def choice_autocomplete(
@@ -399,7 +497,7 @@ def require_permission_autocomplete(
   return handler
 
 # Validation
-def require_choice(input: str, all_choices: List[ServiceFieldSelectorSelectOption], allow_custom: bool = False) -> Any:
+def require_choice(input: str, interaction: discord.Interaction, all_choices: List[ServiceFieldSelectorSelectOption], allow_custom: bool = False) -> Any:
   for choice in all_choices:
     if str(choice.value) == input:
       return choice.value

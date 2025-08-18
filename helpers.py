@@ -1,6 +1,6 @@
 import re
 from Levenshtein import distance as levenshtein_distance
-from typing import TypeVar, Callable, Iterable, List
+from typing import TypeVar, Callable, Iterable, List, Optional
 
 T = TypeVar('T')
 
@@ -31,8 +31,10 @@ def shorten(txt: str, limit: int) -> str:
     return f"{txt[:limit-3]}..."
   return txt
 
-def shorten_option_name(name: str):
+def shorten_option_name(name: str, suffix: Optional[str] = None):
   """Shortens Discord choice option (max 100 characters)"""
+  if suffix is not None:
+    return shorten(name, 100 - len(suffix)) + suffix
   return shorten(name, 100)
 
 def shorten_embed_value(value: str):

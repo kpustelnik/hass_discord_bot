@@ -11,7 +11,7 @@ import re
 import pycountry
 
 from bot import HASSDiscordBot
-from autocompletes import icon_autocomplete, filtered_label_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
+from autocompletes import transform_multiple_autocomplete, multiple_autocomplete, icon_autocomplete, filtered_label_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldSelectorDevice, ServiceFieldSelectorEntity, ServiceFieldCollection, ServiceField, ServiceFieldSelectorSelectOption, ServiceFieldSelectorEntityFilter, replacePlainSelectorOptions, replaceLegacyDeviceSelector, replaceLegacyEntitySelector
@@ -54,7 +54,7 @@ class Services(commands.Cog):
     return False
 
   @staticmethod
-  def transform_object(src: str) -> Any:
+  def transform_object(src: str, interaction: discord.Interaction) -> Any:
     try:
         return yaml.safe_load(src)
     except yaml.YAMLError:
@@ -82,7 +82,7 @@ class Services(commands.Cog):
   async def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
     constants: Dict[str, Any] = {}
-    transformers: Dict[str, Callable[[Any], Any]] = {}
+    transformers: Dict[str, Callable[[Any, discord.Interaction], Any]] = {}
     renames: Dict[str, str] = {}
     async def handler(interaction: discord.Interaction, **kwargs):
       if not await self.bot.check_user_guild(interaction, check_role=True):
@@ -100,7 +100,7 @@ class Services(commands.Cog):
       # Apply transformers
       try:
         final_kwargs = {
-          name: transformers[name](value) if name in transformers else value
+          name: transformers[name](value, interaction) if name in transformers else value
           for name, value in kwargs.items() if value is not None
         }
       except Exception as e:
@@ -108,21 +108,35 @@ class Services(commands.Cog):
         return
 
       # Parse the target if available
+      final_targets: List[str] | None = None
       if 'service_action_target' in final_kwargs:
         target = final_kwargs['service_action_target']
         del final_kwargs['service_action_target']
 
-        match target: # Targets could also be lists
-          case s if s.startswith('AREA$'):
-            final_kwargs['area_id'] = s[len('AREA$'):]
-          case s if s.startswith('DEVICE$'):
-            final_kwargs['device_id'] = s[len('DEVICE$'):]
-          case s if s.startswith('ENTITY$'):
-            final_kwargs['entity_id'] = s[len('ENTITY$'):]
-          case s if s.startswith('FLOOR$'):
-            final_kwargs['floor_id'] = s[len('FLOOR$'):]
-          case s if s.startswith('LABEL$'):
-            final_kwargs['label_id'] = s[len('LABEL$'):]
+        area_ids: List[str] = []
+        device_ids: List[str] = []
+        entity_ids: List[str] = []
+        floor_ids: List[str] = []
+        label_ids: List[str] = []
+
+        final_targets = to_list(target)
+        for subtarget in final_targets:
+          match subtarget:
+            case s if s.startswith('AREA$'):
+              area_ids.append(s[len('AREA$'):])
+            case s if s.startswith('DEVICE$'):
+              area_ids.append(s[len('DEVICE$'):])
+            case s if s.startswith('ENTITY$'):
+              area_ids.append(s[len('ENTITY$'):])
+            case s if s.startswith('FLOOR$'):
+              area_ids.append(s[len('FLOOR$'):])
+            case s if s.startswith('LABEL$'):
+              area_ids.append(s[len('LABEL$'):])
+        if len(area_ids) > 0: final_kwargs['area_id'] = area_ids
+        if len(device_ids) > 0: final_kwargs['device_id'] = device_ids
+        if len(entity_ids) > 0: final_kwargs['entity_id'] = entity_ids
+        if len(floor_ids) > 0: final_kwargs['floor_id'] = floor_ids
+        if len(label_ids) > 0: final_kwargs['label_id'] = label_ids
 
       # Send the request
       try:
@@ -152,7 +166,15 @@ class Services(commands.Cog):
         timestamp=datetime.datetime.now()
       )
 
-      for i, v in kwargs.items():
+      if final_targets is not None:
+        embed.add_field(
+          name='Action targets',
+          value='\n'.join(final_targets)
+        )
+
+      for i in ['area_id', 'device_id', 'entity_id', 'floor_id', 'label_id']:
+        if i in final_kwargs: del final_kwargs[i]
+      for i, v in final_kwargs.items():
         if v is not None:
           id = renames[i] if i in renames else i
           embed.add_field(
@@ -206,10 +228,14 @@ class Services(commands.Cog):
       renames["service_action_target"] = "Service Action Target"
       descriptions["service_action_target"] = "HomeAssistant service action target"
       autocomplete_replacements["service_action_target"] = partial(
-        label_floor_area_device_entity_autocomplete,
-        entity_filter=to_list(service.target.entity),
-        device_filter=to_list(service.target.device)
+        multiple_autocomplete,
+        func=partial(
+          label_floor_area_device_entity_autocomplete,
+          entity_filter=to_list(service.target.entity),
+          device_filter=to_list(service.target.device)
+        )
       )
+      transformers["service_action_target"] = transform_multiple_autocomplete
       all_params.add('service_action_target')
 
     try:
@@ -234,7 +260,7 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.area.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str)) # TODO: Better support for multiple (autocomplete split by ,)
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str)) # TODO: Better support for multiple (autocomplete split by ,)
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_area_autocomplete, entity_filter=to_list(field.selector.area.entity), device_filter=to_list(field.selector.area.device))
 
@@ -276,7 +302,7 @@ class Services(commands.Cog):
               elif field.selector.color_rgb is not None: # ServiceFieldSelectorColorRGB
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, int) and x >= 0 and x <= 255, minlen=3, maxlen=3)
+                transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, int) and x >= 0 and x <= 255, minlen=3, maxlen=3)
 
               elif field.selector.color_temp is not None: # ServiceFieldSelectorColorTemp
                 subtype = int
@@ -313,7 +339,7 @@ class Services(commands.Cog):
                 autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, entity=to_list(ServiceFieldSelectorEntityFilter.model_validate({ 'domain': 'conversation' })))
               
               elif field.selector.country is not None: # ServiceFieldSelectorCountry
-              if field.selector.floor is not None: # ServiceFieldSelectorFloor
+                field_type = str
 
               elif field.selector.date is not None: # ServiceFieldSelectorDate
                 field_type = str
@@ -331,7 +357,7 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if new_device_selector.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, device_filter=to_list(new_device_selector.filter), entity_filter=to_list(new_device_selector.entity))
 
@@ -340,7 +366,7 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if new_entity_selector.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, entity_filter=to_list(new_entity_selector.filter))
                 
@@ -348,7 +374,7 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.floor.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_floor_autocomplete, entity_filter=to_list(field.selector.floor.entity), device_filter=to_list(field.selector.floor.device))
                 
@@ -361,11 +387,11 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.label.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_label_autocomplete, entity_filter=to_list(field.selector.label.entity), device_filter=to_list(field.selector.label.device))
 
-              # TODO
+              elif field.selector.language is not None: # ServiceFieldSelectorLanguage
 
 
                 '''
@@ -381,7 +407,7 @@ class Services(commands.Cog):
                 if field.selector.config_entry.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
 
-              elif field.selector.conversation_agent is not None: # ServiceFieldSelectorText
+              elif field.selector.location is not None: # ServiceFieldSelectorLocation
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.conversation_agent.multiple == True:
@@ -425,7 +451,7 @@ class Services(commands.Cog):
                   field_type = str
                   transformers[field_id] = partial(lambda c_field_options, c_allow_custom, input: Services.transform_multiple(
                     input,
-                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options, allow_custom=c_allow_custom)
+                    lambda x, _: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options, allow_custom=c_allow_custom)
                   ), field_options, field.selector.select.custom_value == True)
                 else:
                   if field.default is not None: default_value = type(field_options[0].value)(field.default) if len(field_options) > 0 else field.default

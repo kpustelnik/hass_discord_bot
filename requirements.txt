@@ -6,3 +6,4 @@ levenshtein
 pydantic
 pyyaml
 pycountry=24.6.1
+base62=1.0.0
