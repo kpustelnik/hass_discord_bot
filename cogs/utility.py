@@ -65,7 +65,7 @@ class Utility(commands.Cog):
       except Exception:
         await interaction.followup.send(f"{Emoji.ERROR} Failed to reload the `{cog_name}` cog.", ephemeral=True)
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
     
 

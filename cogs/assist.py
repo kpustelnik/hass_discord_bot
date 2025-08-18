@@ -55,7 +55,7 @@ class Assist(commands.Cog):
       try:
         response_data = await self.bot.homeassistant_client.async_custom_conversation(request_data)
       except Exception as e:
-        self.bot.logger.error("Failed to reach HomeAssistant", e)
+        self.bot.logger.error("Failed to reach HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to reach HomeAssistant.", ephemeral=True)
       
       # Update the conversation id cache
@@ -95,7 +95,7 @@ class Assist(commands.Cog):
       else:
         await interaction.followup.send(f"{Emoji.WARNING} No response")
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 async def setup(bot: HASSDiscordBot) -> None:

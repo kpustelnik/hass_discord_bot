@@ -38,7 +38,7 @@ class Floors(commands.Cog):
         if floor_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No floor found.", ephemeral=True)
       except Exception as e:
-        self.bot.logger.error("Failed to fetch floor from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch floor from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch floor from HomeAssistant.", ephemeral=True)
 
       escaped_floor_id = self.bot.homeassistant_client.escape_id(floor_data.id)
@@ -59,7 +59,7 @@ class Floors(commands.Cog):
           if areas_data is None:
             raise Exception("No areas were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch areas from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch areas from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch areas from HomeAssistant.", ephemeral=True)
         
         for area_id in floor_data.areas:
@@ -78,7 +78,7 @@ class Floors(commands.Cog):
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch entities from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch entities from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entities from HomeAssistant", ephemeral=True)
 
         for entity_id in floor_data.entities:
@@ -96,7 +96,7 @@ class Floors(commands.Cog):
       
       await interaction.followup.send(embed=embed, view=view)
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 async def setup(bot: HASSDiscordBot) -> None:

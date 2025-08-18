@@ -39,7 +39,7 @@ class Entities(commands.Cog):
         if entity_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No entity found.", ephemeral=True)
       except Exception as e:
-        self.bot.logger.error("Failed to fetch entity from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch entity from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entity from HomeAssistant.", ephemeral=True)
       
       try:
@@ -47,7 +47,7 @@ class Entities(commands.Cog):
         if areas_data is None:
           raise Exception("No areas were returned")
       except Exception as e:
-        self.bot.logger.error("Failed to fetch areas from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch areas from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch areas from HomeAssistant", ephemeral=True)
       
       try:
@@ -55,7 +55,7 @@ class Entities(commands.Cog):
         if devices_data is None:
           raise Exception("No devices were returned")
       except Exception as e:
-        self.bot.logger.error("Failed to fetch devices from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch devices from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch devices from HomeAssistant", ephemeral=True)
 
       escaped_entity_id = self.bot.homeassistant_client.escape_id(entity_data.entity_id)
@@ -102,7 +102,7 @@ class Entities(commands.Cog):
 
       await interaction.followup.send(embed=embed, view=view)
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 

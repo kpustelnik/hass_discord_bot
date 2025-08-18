@@ -325,7 +325,7 @@ class Services(commands.Cog):
 
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                if new_device_selector.device.multiple == True:
+                if new_device_selector.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, device_filter=to_list(new_device_selector.filter), entity_filter=to_list(new_device_selector.entity))
@@ -334,7 +334,7 @@ class Services(commands.Cog):
                 new_entity_selector: ServiceFieldSelectorEntity = replaceLegacyEntitySelector(field.selector.entity)
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                if new_entity_selector.entity.multiple == True:
+                if new_entity_selector.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, entity_filter=to_list(new_entity_selector.filter))
@@ -410,33 +410,29 @@ class Services(commands.Cog):
                   else: # Use literal type (choices implemented on Discord)
                     field_type = Literal[*field_options]
                   transformers[field_id] = partial(require_choice, all_choices=field_options) # Always confirm if the choice is valid
+                
+              elif field.selector.target is not None: # ServiceFieldSelectorTarget
+                autocomplete_replacements[field_id] = partial(
+                  label_floor_area_device_entity_autocomplete,
+                  entity_filter=to_list(field.selector.target.entity),
+                  device_filter=to_list(field.selector.target.device)
+                )
 
-              elif field.selector.theme is not None: # ServiceFieldSelectorTheme
+              elif field.selector.template is not None: # ServiceFieldSelectorTemplate
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
 
-              elif field.selector.color_temp is not None: # ServiceFieldSelectorNumber
-                subtype = float if field.selector.color_temp is not None and isinstance(field.selector.color_temp, int) and field.selector.color_temp.step != 1 else int
-                if field.selector.color_temp.min is not None or field.selector.color_temp.max is not None:
-                  val_max = field.selector.color_temp.max
-                  if val_max is not None and val_max > 9007199254740991:
-                    val_max = 9007199254740991
-                  field_type = app_commands.Range[subtype, field.selector.color_temp.min, val_max]
-                else:
-                  field_type = subtype
-                if field.default is not None: default_value = subtype(field.default)
+              elif field.selector.text is not None: # ServiceFieldSelectorText
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if field.selector.text.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                   
-              elif field.selector.time is not None: # ServiceFieldSelectorText
+              elif field.selector.time is not None: # ServiceFieldSelectorTime
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                if field.selector.time.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
-
-              elif field.selector.statistic is not None: # ServiceFieldSelectorEntity
-                field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.statistic.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                additional_description = 'HH:MM' if field.selector.time.no_second == True else 'HH:MM:SS'
+              
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, integration=field.selector.statistic.integration, domain=field.selector.statistic.domain)
 
@@ -458,7 +454,7 @@ class Services(commands.Cog):
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 '''
               else:
-                self.bot.logger.error("Unknown selector", domain.domain, service_id, field_id)
+                self.bot.logger.error("Unknown selector - %s %s %s", domain.domain, service_id, field_id)
                 raise Exception('Unknown selector')
 
               if not is_hidden:

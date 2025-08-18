@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Any
 from bot import HASSDiscordBot
 
 from helpers import tokenize, fuzzy_keyword_match_with_order, shorten_option_name, get_domain_from_entity_id, is_matching
@@ -9,7 +9,7 @@ from models.AreaModel import AreaModel
 from models.DeviceModel import DeviceModel
 from models.EntityModel import EntityModel
 from models.LabelModel import LabelModel
-from models.ServiceModel import ServiceFieldSelectorEntityFilter, ServiceFieldSelectorDeviceFilter
+from models.ServiceModel import ServiceFieldSelectorEntityFilter, ServiceFieldSelectorDeviceFilter, ServiceFieldSelectorSelectOption
 from models.MDIIconMeta import MDIIconMeta
 from enums.emojis import Emoji
 
@@ -23,7 +23,7 @@ async def get_icon_autocomplete_choices(
     if mdi_icons is None:
       raise Exception("No icons were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch icons", e)
+    bot.logger.error("Failed to fetch icons - %s %s", type(e), e)
     return []
   
   target_tokens = tokenize(current_input)
@@ -69,7 +69,7 @@ async def get_label_autocomplete_choices(
     if homeassistant_labels is None:
       raise Exception("No labels were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch labels", e)
+    bot.logger.error("Failed to fetch labels - %s %s", type(e), e)
     return []
     
   checked_labels = filter(lambda x: x.id in matching_labels, homeassistant_labels) if matching_labels is not None else homeassistant_labels
@@ -126,7 +126,7 @@ async def get_floor_autocomplete_choices(
     if homeassistant_floors is None:
       raise Exception("No floors were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch floors", e)
+    bot.logger.error("Failed to fetch floors - %s %s", type(e), e)
     return []
   
   checked_floors = filter(lambda x: x.id in matching_floors, homeassistant_floors) if matching_floors is not None else homeassistant_floors
@@ -183,7 +183,7 @@ async def get_area_autocomplete_choices(
     if homeassistant_areas is None:
       raise Exception("No areas were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch areas", e)
+    bot.logger.error("Failed to fetch areas - %s %s", type(e), e)
     return []
     
   checked_areas = filter(lambda x: x.id in matching_areas, homeassistant_areas) if matching_areas is not None else homeassistant_areas
@@ -239,7 +239,7 @@ async def get_device_autocomplete_choices(
     if homeassistant_devices is None:
       raise Exception("No devices were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch devices", e)
+    bot.logger.error("Failed to fetch devices - %s %s", type(e), e)
     return []
     
   checked_devices = filter(lambda x: x.id in matching_devices, homeassistant_devices) if matching_devices is not None else homeassistant_devices
@@ -294,7 +294,7 @@ async def get_entity_autocomplete_choices(
     if homeassistant_entities is None:
       raise Exception("No entities were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch entities", e)
+    bot.logger.error("Failed to fetch entities - %s %s", type(e), e)
     return []
   
   checked_entities = filter(lambda x: x.entity_id in matching_entities, homeassistant_entities) if matching_entities is not None else homeassistant_entities
@@ -365,16 +365,19 @@ async def label_floor_area_device_entity_autocomplete(
 async def choice_autocomplete(
   interaction: discord.Interaction,
   current_input: str,
-  all_choices: List[str]
+  all_choices: List[ServiceFieldSelectorSelectOption]
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   target_tokens = tokenize(current_input)
   choice_list = [
     (
-      fuzzy_keyword_match_with_order(tokenize(str(choice)), target_tokens),
+      max(
+        fuzzy_keyword_match_with_order(tokenize(str(choice.label)), target_tokens),
+        fuzzy_keyword_match_with_order(tokenize(str(choice.value)), target_tokens)
+      ),
       app_commands.Choice(
-        name=shorten_option_name(str(choice)),
-        value=str(choice)
+        name=shorten_option_name(str(choice.label)),
+        value=str(choice.value)
       )
     )
     for choice in all_choices
@@ -396,11 +399,13 @@ def require_permission_autocomplete(
   return handler
 
 # Validation
-def require_choice(input: str, all_choices: List[str]) -> str:
-  if input in all_choices:
+def require_choice(input: str, all_choices: List[ServiceFieldSelectorSelectOption], allow_custom: bool = False) -> Any:
+  for choice in all_choices:
+    if str(choice.value) == input:
+      return choice.value
+  if allow_custom:
     return input
-  else:
-    raise Exception("Incorrect choice")
+  raise Exception("Incorrect choice")
   
 # Labels, floors, area, devices, entities matching
 async def get_matching_labels( # Labels base on areas, devices and entities
@@ -417,7 +422,7 @@ async def get_matching_labels( # Labels base on areas, devices and entities
     if homeassistant_labels is None:
       raise Exception("No labels were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch labels", e)
+    bot.logger.error("Failed to fetch labels - %s %s", type(e), e)
     return []
   
   matching_labels = set()
@@ -443,7 +448,7 @@ async def get_matching_floors( # Getting matching floors seems to only base on m
     if homeassistant_floors is None:
       raise Exception("No floors were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch floors", e)
+    bot.logger.error("Failed to fetch floors - %s %s", type(e), e)
     return []
   
   matching_floors = set()
@@ -466,7 +471,7 @@ async def get_matching_areas(
     if homeassistant_areas is None:
       raise Exception("No areas were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch areas", e)
+    bot.logger.error("Failed to fetch areas - %s %s", type(e), e)
     return []
   
   matching_areas = set()
@@ -491,7 +496,7 @@ async def get_matching_devices(
     if homeassistant_devices is None:
       raise Exception("No devices were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch devices", e)
+    bot.logger.error("Failed to fetch devices - %s %s", type(e), e)
     return set()
   
   if matching_entities is not None:
@@ -505,7 +510,7 @@ async def get_matching_devices(
         try:
           integration_entities: Set[str] = set(await bot.homeassistant_client.async_custom_get_integration_entities(current_filter.integration))
         except Exception as e:
-          bot.logger.error("Failed to fetch integration entities", type(e), e)
+          bot.logger.error("Failed to fetch integration entities - %s %s", type(e), e)
           return set()
         # I don't think it's currently possible to fetch the device's config entry and it's related integration?
         filter_devices = filter(lambda x: len(integration_entities.intersection(set(x.entities))) != 0, filter_devices) # Any of the device's entities should belong to the integration
@@ -536,7 +541,7 @@ async def get_matching_entities(
     if homeassistant_entities is None:
       raise Exception("No entities were returned")
   except Exception as e:
-    bot.logger.error("Failed to fetch entities", type(e), e)
+    bot.logger.error("Failed to fetch entities - %s %s", type(e), e)
     return set()
   
   filter_matching_entities: Set[str] = set()
@@ -546,7 +551,7 @@ async def get_matching_entities(
       try:
         integration_entities: Set[str] = set(await bot.homeassistant_client.async_custom_get_integration_entities(current_filter.integration))
       except Exception as e:
-        bot.logger.error("Failed to fetch integration entities", type(e), e)
+        bot.logger.error("Failed to fetch integration entities - %s %s", type(e), e)
         return set()
       filter_entities = filter(lambda x: x.entity_id in integration_entities, filter_entities)
     

@@ -39,7 +39,7 @@ class Labels(commands.Cog):
         if label_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No label found.", ephemeral=True)
       except Exception as e:
-        self.bot.logger.error("Failed to fetch label from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch label from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch label from HomeAssistant.", ephemeral=True)
 
       escaped_label_id = self.bot.homeassistant_client.escape_id(label_data.id)
@@ -64,7 +64,7 @@ class Labels(commands.Cog):
           if areas_data is None:
             raise Exception("No areas were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch areas from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch areas from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch areas from HomeAssistant.", ephemeral=True)
         
         for area_id in label_data.areas:
@@ -84,7 +84,7 @@ class Labels(commands.Cog):
           if devices_data is None:
             raise Exception("No devices were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch devices from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch devices from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch devices from HomeAssistant.", ephemeral=True)
         
         for device_id in label_data.devices:
@@ -104,7 +104,7 @@ class Labels(commands.Cog):
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch entities from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch entities from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entities from HomeAssistant", ephemeral=True)
 
         for entity_id in label_data.entities:
@@ -122,7 +122,7 @@ class Labels(commands.Cog):
       
       await interaction.followup.send(embed=embed, view=view)
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 async def setup(bot: HASSDiscordBot) -> None:

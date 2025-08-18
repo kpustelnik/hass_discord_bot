@@ -232,7 +232,7 @@ class ServiceFieldSelectorSelectOption(BaseModel, extra='forbid'):
   image: Optional[str | SelectBoxOptionImage] = None
   disable: Optional[bool] = None
 
-class ServiceFieldSelectorSelect(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorSelect(BaseModel, extra='forbid'):
   multiple: Optional[bool] = None # Submitted as List[str] if multiple
   custom_value: Optional[bool] = None
   mode: Optional[ServiceFieldSelectorSelectMode] = None
@@ -242,14 +242,14 @@ class ServiceFieldSelectorSelect(BaseModel, extra='forbid'): # TODO
   reorder: Optional[bool] = None
   box_max_columns: Optional[int] = None
 
-class ServiceFieldSelectorSelector(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorSelector(BaseModel, extra='forbid'): # not supported
   pass
 
 class ServiceFieldSelectorStateOption(BaseModel, extra='forbid'):
   label: str
   value: Any
 
-class ServiceFieldSelectorState(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorState(BaseModel, extra='forbid'): # not supported
   extra_options: Optional[List[ServiceFieldSelectorStateOption]]
   entity_id: Optional[str | List[str]]
   attribute: Optional[str] = None
@@ -260,17 +260,17 @@ class ServiceFieldSelectorStatistic(BaseModel, extra='forbid'): # not supported 
   device_class: Optional[str] = None
   multiple: Optional[bool] = None
 
-class ServiceFieldSelectorTarget(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTarget(BaseModel, extra='forbid'):
   entity: Optional[List[ServiceFieldSelectorEntityFilter] | ServiceFieldSelectorEntityFilter] = None
   device: Optional[List[ServiceFieldSelectorDeviceFilter] | ServiceFieldSelectorDeviceFilter] = None
 
-class ServiceFieldSelectorTemplate(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTemplate(BaseModel, extra='forbid'):
   pass
 
 class ServiceFieldSelectorSTT(BaseModel, extra='forbid'): # not supported
   language: Optional[str] = None
 
-class ServiceFieldSelectorText(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorText(BaseModel, extra='forbid'):
   multiline: Optional[bool] = None
   type: Optional[ServiceFieldSelectorTextType] = None
   prefix: Optional[str] = None
@@ -281,7 +281,7 @@ class ServiceFieldSelectorText(BaseModel, extra='forbid'): # TODO
 class ServiceFieldSelectorTheme(BaseModel, extra='forbid'): # not supported
   include_default: Optional[bool] = None
 
-class ServiceFieldSelectorTime(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTime(BaseModel, extra='forbid'):
   no_second: Optional[bool] = None
 
 class ServiceFieldSelectorTrigger(BaseModel, extra='forbid'): # not supported

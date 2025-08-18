@@ -37,7 +37,7 @@ class Devices(commands.Cog):
         if device_data is None:
           return await interaction.followup.send(f"{Emoji.ERROR} No device found.", ephemeral=True)
       except Exception as e:
-        self.bot.logger.error("Failed to fetch device from HomeAssistant", e)
+        self.bot.logger.error("Failed to fetch device from HomeAssistant - %s %s", type(e), e)
         return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch device from HomeAssistant.", ephemeral=True)
       
       area_data: AreaModel | None = None
@@ -47,7 +47,7 @@ class Devices(commands.Cog):
           if area_data is None:
             raise Exception("No area was returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch area from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch area from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch area from HomeAssistant", ephemeral=True)
 
       escaped_device_id = self.bot.homeassistant_client.escape_id(device_data.id)
@@ -90,7 +90,7 @@ class Devices(commands.Cog):
           if entities_data is None:
             raise Exception("No entities were returned")
         except Exception as e:
-          self.bot.logger.error("Failed to fetch entities from HomeAssistant", e)
+          self.bot.logger.error("Failed to fetch entities from HomeAssistant - %s %s", type(e), e)
           return await interaction.followup.send(f"{Emoji.ERROR} Failed to fetch entities from HomeAssistant", ephemeral=True)
 
         for entity_id in device_data.entities:
@@ -109,7 +109,7 @@ class Devices(commands.Cog):
       
       await interaction.followup.send(embed=embed, view=view)
     except Exception as e:
-      self.bot.logger.error("General error", e)
+      self.bot.logger.error("General error - %s %s", type(e), e)
       await interaction.followup.send(f"{Emoji.ERROR} Failed for unknown reason.", ephemeral=True)
 
 async def setup(bot: HASSDiscordBot) -> None:

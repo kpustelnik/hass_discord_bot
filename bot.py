@@ -122,9 +122,9 @@ class HASSDiscordBot(commands.Bot):
         await interaction.response.send_message(f"{Emoji.ERROR} Error occured during command execution.", ephemeral=True)
       else:
         await interaction.response.send_message(f"{Emoji.ERROR} Unexpected exception.", ephemeral=True)
-        self.logger.error(f"Unexpected error", type(error), error)
+        self.logger.error(f"Unexpected error - %s %s", type(error), error)
     except Exception as e:
-      self.logger.error("Command error handling", type(e), e)
+      self.logger.error("Command error handling - %s %s", type(e), e)
   
   async def on_ready(self):
     self.file_logger.info("Bot is ready")
@@ -135,7 +135,7 @@ class HASSDiscordBot(commands.Bot):
         synced_guild = await self.tree.sync(guild=discord.Object(self.discord_main_guild_id))
         self.file_logger.info(f"Synced {len(synced_guild)} guild commands")
     except Exception as e:
-      self.logger.error("Sync error", e)
+      self.logger.error("Sync error - %s %s", type(e), e)
   
   async def check_user_guild(self, interaction: discord.Interaction, check_role=False) -> bool:
     respond = interaction.type == discord.InteractionType.application_command
