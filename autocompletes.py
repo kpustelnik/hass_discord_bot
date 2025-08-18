@@ -3,6 +3,8 @@ from discord import app_commands
 from typing import List, Optional, Set, Any, Callable, Awaitable
 import base62
 import re
+import yaml
+import json
 from cachetools import TTLCache
 
 from bot import HASSDiscordBot
@@ -426,10 +428,11 @@ class MultipleAutocompleteData():
   suffix_regex = re.compile(r'\!\[(\#\d+ )?([a-zA-Z0-9]+)\]( +\>)?')
 
 MULTIPLE_ALWAYS_ADD_RETURN = True
+MULTIPLE_VALUE_PREFIX = '!AC:'
 async def multiple_autocomplete(
     interaction: discord.Interaction,
     current_input: str,
-    func: Callable[[discord.Interaction, str, List[Any]], Awaitable[List[app_commands.Choice[str]]]],
+    func: Optional[Callable[[discord.Interaction, str, List[Any]], Awaitable[List[app_commands.Choice[str]]]]] = None,
     allow_custom: bool = False
 ) -> List[app_commands.Choice[str]]:
   re_match = MultipleAutocompleteData.suffix_regex.search(current_input)
@@ -444,11 +447,11 @@ async def multiple_autocomplete(
     if len(new_data) == 0: return []
 
     new_madata = MultipleAutocompleteData(new_data, interaction.user.id)
-    return [app_commands.Choice(name=shorten_option_name('Remove last', suffix=f' {new_madata.generate_suffix()}'), value=new_madata.get_short_id())]
+    return [app_commands.Choice(name=shorten_option_name('Remove last', suffix=f' {new_madata.generate_suffix()}'), value=f'{MULTIPLE_VALUE_PREFIX}{new_madata.get_short_id()}')]
 
   actual_input = current_input if re_match is None else current_input[re_match.span()[1]:]
   prev_data: List[Any] = [] if madata is None else madata.data
-  func_choices = await func(interaction, actual_input, prev_data)
+  func_choices = (await func(interaction, actual_input, prev_data)) if func is not None else []
 
   new_choices: List[app_commands.Choice] = []
   for choice in func_choices:
@@ -458,7 +461,7 @@ async def multiple_autocomplete(
     new_choices.append(
       app_commands.Choice(
         name=shorten_option_name(f'{choice.name}', suffix=f' {new_madata.generate_suffix()}'),
-        value=new_madata.get_short_id()
+        value=f'{MULTIPLE_VALUE_PREFIX}{new_madata.get_short_id()}'
       )
     )
 
@@ -468,7 +471,7 @@ async def multiple_autocomplete(
     
     new_choices.insert(0, app_commands.Choice(
       name=shorten_option_name(actual_input, suffix=f' {add_actual_madata.generate_suffix()}'),
-      value=add_actual_madata.get_short_id()
+      value=f'{MULTIPLE_VALUE_PREFIX}{add_actual_madata.get_short_id()}'
     ))
 
   if MULTIPLE_ALWAYS_ADD_RETURN and len(prev_data) > 1:
@@ -477,16 +480,57 @@ async def multiple_autocomplete(
     new_choices.append(
       app_commands.Choice(
         name=shorten_option_name('Remove last', suffix=f' {prev_madata.generate_suffix()}'),
-        value=prev_madata.get_short_id()
+        value=f'{MULTIPLE_VALUE_PREFIX}{prev_madata.get_short_id()}'
       )
     )
   
   return new_choices
 
-def transform_multiple_autocomplete(value: str, interaction: discord.Interaction) -> List[Any]:
+def transform_object(src: str, interaction: Optional[discord.Interaction] = None) -> Any:
+  try:
+      return yaml.safe_load(src)
+  except yaml.YAMLError:
+      try:
+          return json.loads(src)
+      except json.JSONDecodeError:
+          raise ValueError("Incorrect input")
+      
+def transform_multiple(src: str, checker: Callable[[Any], bool], minlen: Optional[int] = None, maxlen: Optional[int] = None, delimiter: Optional[str] = None) -> List[Any]:
+  print(src, delimiter)
+  try:
+    parsed_object = transform_object(src, None)
+  except Exception as e:
+    if delimiter is not None: # previous methods failed
+      parsed_object = src.split(delimiter)
+    else:
+      raise
+
+  if isinstance(parsed_object, str) and delimiter is not None: # Still a string even after the parsing
+    parsed_object = src.split(delimiter)
+  
+  if not isinstance(parsed_object, list):
+    raise ValueError("Input is not a list")
+  
+  if maxlen is not None and len(parsed_object) > maxlen:
+    raise ValueError("Too many values")
+  if minlen is not None and len(parsed_object) < minlen:
+    raise ValueError("Too few values")
+  
+  for value in parsed_object:
+    if not checker(value):
+      raise ValueError("Incorrect input elements")
+  return parsed_object
+
+def transform_multiple_autocomplete(value: str, interaction: discord.Interaction, default_transform: Optional[bool | str] = ';') -> List[Any]:
+  if not value.startswith(MULTIPLE_VALUE_PREFIX):
+    if default_transform == True or isinstance(default_transform, str):
+      return transform_multiple(value, lambda x: isinstance(x, str), delimiter=default_transform if isinstance(default_transform, str) else None)
+    else:
+      return value
+
   bot: HASSDiscordBot = interaction.client
-  madata = MultipleAutocompleteData.get_by_short_id(value)
-  if madata is None:
+  madata = MultipleAutocompleteData.get_by_short_id(value[len(MULTIPLE_VALUE_PREFIX):])
+  if madata is None or madata.creator_id != interaction.user.id:
     raise Exception("Missing multiple autocomplete data. Please try again.")
   
   bot.file_logger.info(f'Expanding `{value}` to `{str(madata.data)}`.')
