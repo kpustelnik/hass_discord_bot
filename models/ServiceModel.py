@@ -175,19 +175,19 @@ class ServiceFieldSelectorIcon(BaseModel, extra='forbid'):
   placeholder: Optional[str] = None
   fallbackPath: Optional[str] = None
 
-class ServiceFieldSelectorImage(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorImage(BaseModel, extra='forbid'): # not supported
   original: Optional[bool] = None
   crop: Optional[CropOptions] = None
 
-class ServiceFieldSelectorLabel(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorLabel(BaseModel, extra='forbid'):
   multiple: Optional[bool] = None
 
-class ServiceFieldSelectorLanguage(BaseModel, extra='forbid'):  # TODO #  RFC 5646
+class ServiceFieldSelectorLanguage(BaseModel, extra='forbid'):
   languages: Optional[List[str]] = None
-  native_name: Optional[bool] = None
+  native_name: Optional[bool] = None # Ignored
   no_sort: Optional[bool] = None
 
-class ServiceFieldSelectorLocation(BaseModel, extra='forbid'): # TODO # Specific output
+class ServiceFieldSelectorLocation(BaseModel, extra='forbid'):
   radius: Optional[bool] = None
   radius_readonly: Optional[bool] = None
   icon: Optional[str] = None
@@ -195,10 +195,10 @@ class ServiceFieldSelectorLocation(BaseModel, extra='forbid'): # TODO # Specific
 class ServiceFieldSelectorMedia(BaseModel, extra='forbid'): # not supported
   accept: Optional[List[str]] = None
 
-class ServiceFieldSelectorNavigation(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorNavigation(BaseModel, extra='forbid'): # not supported
   pass
 
-class ServiceFieldSelectorNumber(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorNumber(BaseModel, extra='forbid'):
   min: Optional[number] = None
   max: Optional[number] = None
   step: Optional[number | str] = None
@@ -212,14 +212,14 @@ class ServiceFieldSelectorObjectField(BaseModel, extra='forbid'):
   label: Optional[str] = None
   required: Optional[bool] = None
 
-class ServiceFieldSelectorObject(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorObject(BaseModel, extra='forbid'):
   label_field: Optional[str] = None
   description_field: Optional[str] = None
   translation_key: Optional[str] = None
   fields: Dict[str, ServiceFieldSelectorObjectField] = None
   multiple: Optional[bool] = None
 
-class ServiceFieldSelectorQRCode(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorQRCode(BaseModel, extra='forbid'): # not supported (does not return anything)
   data: str
   scale: Optional[number] = None
   error_correction_level: Optional[ServiceFieldSelectorQRCodeErrorCorrectionLevel] = None
@@ -256,7 +256,7 @@ class ServiceFieldSelectorState(BaseModel, extra='forbid'): # TODO
   hide_states: Optional[List[str]] = None
   multiple: Optional[bool] = None
 
-class ServiceFieldSelectorStatistic(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorStatistic(BaseModel, extra='forbid'): # not supported (unable to fetch entities with long term stats)
   device_class: Optional[str] = None
   multiple: Optional[bool] = None
 
@@ -267,7 +267,7 @@ class ServiceFieldSelectorTarget(BaseModel, extra='forbid'): # TODO
 class ServiceFieldSelectorTemplate(BaseModel, extra='forbid'): # TODO
   pass
 
-class ServiceFieldSelectorSTT(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorSTT(BaseModel, extra='forbid'): # not supported
   language: Optional[str] = None
 
 class ServiceFieldSelectorText(BaseModel, extra='forbid'): # TODO
@@ -278,31 +278,31 @@ class ServiceFieldSelectorText(BaseModel, extra='forbid'): # TODO
   autocomplete: Optional[str] = None
   multiple: Optional[bool] = None # Submitted as List[str] if multiple
 
-class ServiceFieldSelectorTheme(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTheme(BaseModel, extra='forbid'): # not supported
   include_default: Optional[bool] = None
 
 class ServiceFieldSelectorTime(BaseModel, extra='forbid'): # TODO
   no_second: Optional[bool] = None
 
-class ServiceFieldSelectorTrigger(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTrigger(BaseModel, extra='forbid'): # not supported
   pass
 
-class ServiceFieldSelectorTTS(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTTS(BaseModel, extra='forbid'): # not supported
   language: Optional[str] = None
 
-class ServiceFieldSelectorTTSVoice(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorTTSVoice(BaseModel, extra='forbid'): # not supported
   engineId: Optional[str] = None
   language: Optional[str] = None
 
-class ServiceFieldSelectorUIAction(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorUIAction(BaseModel, extra='forbid'): # not supported
   pass # Missing
 
-class ServiceFieldSelectorUIColor(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorUIColor(BaseModel, extra='forbid'): # not supported
   default_color: Optional[str] = None
   include_none: Optional[bool] = None
   include_state: Optional[bool] = None
 
-class ServiceFieldSelectorUIStateContext(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorUIStateContext(BaseModel, extra='forbid'): # not supported
   entity_id: Optional[str] = None
   allow_name: Optional[bool] = None
 

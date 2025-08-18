@@ -11,7 +11,7 @@ import re
 import pycountry
 
 from bot import HASSDiscordBot
-from autocompletes import icon_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
+from autocompletes import icon_autocomplete, filtered_label_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldSelectorDevice, ServiceFieldSelectorEntity, ServiceFieldCollection, ServiceField, ServiceFieldSelectorSelectOption, ServiceFieldSelectorEntityFilter, replacePlainSelectorOptions, replaceLegacyDeviceSelector, replaceLegacyEntitySelector
@@ -309,6 +309,35 @@ class Services(commands.Cog):
               
               elif field.selector.country is not None: # ServiceFieldSelectorCountry
               if field.selector.floor is not None: # ServiceFieldSelectorFloor
+
+              elif field.selector.date is not None: # ServiceFieldSelectorDate
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                additional_description = 'YYYY-MM-DD'
+              
+              elif field.selector.datetime is not None: # ServiceFieldSelectorDateTime
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                additional_description = 'YYYY-MM-DD HH:MM:SS'
+
+              elif field.selector.device is not None: # ServiceFieldSelectorDevice | ServiceFieldSelectorDeviceLegacy
+                new_device_selector: ServiceFieldSelectorDevice = replaceLegacyDeviceSelector(field.selector.device)
+
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if new_device_selector.device.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, device_filter=to_list(new_device_selector.filter), entity_filter=to_list(new_device_selector.entity))
+
+              elif field.selector.entity is not None: # ServiceFieldSelectorEntity | ServiceFieldSelectorEntityLegacy
+                new_entity_selector: ServiceFieldSelectorEntity = replaceLegacyEntitySelector(field.selector.entity)
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if new_entity_selector.entity.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, entity_filter=to_list(new_entity_selector.filter))
                 
               elif field.selector.floor is not None: # ServiceFieldSelectorFloor
                 field_type = str
@@ -316,12 +345,20 @@ class Services(commands.Cog):
                 if field.selector.floor.multiple == True:
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 else:
-                  autocomplete_replacements[field_id] = partial(filtered_floor_autocomplete, entity_filter=to_list(field.selector.area.entity), device_filter=to_list(field.selector.area.device))
+                  autocomplete_replacements[field_id] = partial(filtered_floor_autocomplete, entity_filter=to_list(field.selector.floor.entity), device_filter=to_list(field.selector.floor.device))
                 
               elif field.selector.icon is not None: # ServiceFieldSelectorIcon
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 autocomplete_replacements[field_id] = icon_autocomplete
+
+              elif field.selector.label is not None: # ServiceFieldSelectorLabel
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                if field.selector.label.multiple == True:
+                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                else:
+                  autocomplete_replacements[field_id] = partial(filtered_label_autocomplete, entity_filter=to_list(field.selector.label.entity), device_filter=to_list(field.selector.label.device))
 
               # TODO
 
