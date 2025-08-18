@@ -498,10 +498,27 @@ class Services(commands.Cog):
                 if field.selector.select.multiple == True:
                   if field.default is not None: default_value = str(field.default)
                   field_type = str
-                  transformers[field_id] = partial(lambda c_field_options, c_allow_custom, input: Services.transform_multiple(
-                    input,
-                    lambda x, _: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options, allow_custom=c_allow_custom)
-                  ), field_options, field.selector.select.custom_value == True)
+                  if self.USE_AUTOCOMPLETE_MULTIPLE:
+                    autocomplete_replacements[field_id] = partial(
+                      multiple_autocomplete,
+                      func=partial(choice_autocomplete, all_choices=field_options),
+                      allow_custom=field.selector.select.custom_value == True
+                    )
+                    transformers[field_id] = partial(
+                      lambda c_field_options, c_allow_custom, x_in, interaction: transform_multiple_autocomplete(
+                        x_in,
+                        interaction,
+                        default_transform_custom_checker=lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0].value))) and require_choice(x, interaction, all_choices=c_field_options, allow_custom=c_allow_custom),
+                        default_transform_transformer=lambda x: type(c_field_options[0].value)(x) if len(c_field_options) > 0 else x
+                      ),
+                      field_options, field.selector.select.custom_value == True
+                    )
+                  else:
+                    transformers[field_id] = partial(lambda c_field_options, c_allow_custom, input: transform_multiple(
+                      input,
+                      lambda x, _: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0].value))) and require_choice(x, all_choices=c_field_options, allow_custom=c_allow_custom),
+                      delimiter=';'
+                    ), field_options, field.selector.select.custom_value == True)
                 else:
                   if field.default is not None: default_value = type(field_options[0].value)(field.default) if len(field_options) > 0 else field.default
                   if len(field_all_options) > 25 or not are_all_strings or field.selector.select.custom_value == True:

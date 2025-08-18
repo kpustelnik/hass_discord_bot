@@ -495,18 +495,28 @@ def transform_object(src: str, interaction: Optional[discord.Interaction] = None
       except json.JSONDecodeError:
           raise ValueError("Incorrect input")
       
-def transform_multiple(src: str, checker: Callable[[Any], bool], minlen: Optional[int] = None, maxlen: Optional[int] = None, delimiter: Optional[str] = None) -> List[Any]:
-  print(src, delimiter)
+def transform_multiple(
+  src: str,
+  checker: Callable[[Any], bool],
+  minlen: Optional[int] = None,
+  maxlen: Optional[int] = None,
+  delimiter: Optional[str] = None,
+  delimiter_transformer: Optional[Callable[[str], Any]] = None
+) -> List[Any]:
   try:
     parsed_object = transform_object(src, None)
   except Exception as e:
     if delimiter is not None: # previous methods failed
       parsed_object = src.split(delimiter)
+      if delimiter_transformer is not None:
+        parsed_object = [ delimiter_transformer(x) for x in parsed_object ]
     else:
       raise
 
   if isinstance(parsed_object, str) and delimiter is not None: # Still a string even after the parsing
     parsed_object = src.split(delimiter)
+    if delimiter_transformer is not None:
+      parsed_object = [ delimiter_transformer(x) for x in parsed_object ]
   
   if not isinstance(parsed_object, list):
     raise ValueError("Input is not a list")
@@ -521,10 +531,21 @@ def transform_multiple(src: str, checker: Callable[[Any], bool], minlen: Optiona
       raise ValueError("Incorrect input elements")
   return parsed_object
 
-def transform_multiple_autocomplete(value: str, interaction: discord.Interaction, default_transform: Optional[bool | str] = ';') -> List[Any]:
+def transform_multiple_autocomplete(
+  value: str,
+  interaction: discord.Interaction,
+  default_transform: Optional[bool | str] = ';',
+  default_transform_custom_checker: Optional[Callable[[Any], bool]] = None,
+  default_transform_transformer: Optional[Callable[[str], Any]] = None
+) -> List[Any]:
   if not value.startswith(MULTIPLE_VALUE_PREFIX):
     if default_transform == True or isinstance(default_transform, str):
-      return transform_multiple(value, lambda x: isinstance(x, str), delimiter=default_transform if isinstance(default_transform, str) else None)
+      return transform_multiple(
+        value,
+        default_transform_custom_checker if default_transform_custom_checker is not None else lambda x: isinstance(x, str), 
+        delimiter=default_transform if isinstance(default_transform, str) else None,
+        delimiter_transformer=default_transform_transformer
+      )
     else:
       return value
 
@@ -540,6 +561,8 @@ def transform_multiple_autocomplete(value: str, interaction: discord.Interaction
 async def choice_autocomplete(
   interaction: discord.Interaction,
   current_input: str,
+  except_values: Optional[List[str]] = None,
+  *,
   all_choices: List[ServiceFieldSelectorSelectOption]
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
@@ -557,6 +580,8 @@ async def choice_autocomplete(
     )
     for choice in all_choices
   ]
+  if except_values is not None:
+    choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
 
   min_score = choice_list[0][0] * (1 - bot.SIMILARITY_TOLERANCE) if len(choice_list) != 0 else 0
