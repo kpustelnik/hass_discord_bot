@@ -79,6 +79,35 @@ class Services(commands.Cog):
         raise ValueError("Incorrect input elements")
     return parsed_object
   
+  def parse_targets(targets: List[str]) -> Dict:
+    parsed_kwargs = {}
+    area_ids: List[str] = []
+    device_ids: List[str] = []
+    entity_ids: List[str] = []
+    floor_ids: List[str] = []
+    label_ids: List[str] = []
+
+    for subtarget in targets:
+      match subtarget:
+        case s if s.startswith('AREA$'):
+          area_ids.append(s[len('AREA$'):])
+        case s if s.startswith('DEVICE$'):
+          area_ids.append(s[len('DEVICE$'):])
+        case s if s.startswith('ENTITY$'):
+          area_ids.append(s[len('ENTITY$'):])
+        case s if s.startswith('FLOOR$'):
+          area_ids.append(s[len('FLOOR$'):])
+        case s if s.startswith('LABEL$'):
+          area_ids.append(s[len('LABEL$'):])
+    
+    if len(area_ids) > 0: parsed_kwargs['area_id'] = area_ids
+    if len(device_ids) > 0: parsed_kwargs['device_id'] = device_ids
+    if len(entity_ids) > 0: parsed_kwargs['entity_id'] = entity_ids
+    if len(floor_ids) > 0: parsed_kwargs['floor_id'] = floor_ids
+    if len(label_ids) > 0: parsed_kwargs['label_id'] = label_ids
+    
+    return parsed_kwargs
+  
   async def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
     # Create handler function
     constants: Dict[str, Any] = {}
@@ -112,31 +141,7 @@ class Services(commands.Cog):
       if 'service_action_target' in final_kwargs:
         target = final_kwargs['service_action_target']
         del final_kwargs['service_action_target']
-
-        area_ids: List[str] = []
-        device_ids: List[str] = []
-        entity_ids: List[str] = []
-        floor_ids: List[str] = []
-        label_ids: List[str] = []
-
-        final_targets = to_list(target)
-        for subtarget in final_targets:
-          match subtarget:
-            case s if s.startswith('AREA$'):
-              area_ids.append(s[len('AREA$'):])
-            case s if s.startswith('DEVICE$'):
-              area_ids.append(s[len('DEVICE$'):])
-            case s if s.startswith('ENTITY$'):
-              area_ids.append(s[len('ENTITY$'):])
-            case s if s.startswith('FLOOR$'):
-              area_ids.append(s[len('FLOOR$'):])
-            case s if s.startswith('LABEL$'):
-              area_ids.append(s[len('LABEL$'):])
-        if len(area_ids) > 0: final_kwargs['area_id'] = area_ids
-        if len(device_ids) > 0: final_kwargs['device_id'] = device_ids
-        if len(entity_ids) > 0: final_kwargs['entity_id'] = entity_ids
-        if len(floor_ids) > 0: final_kwargs['floor_id'] = floor_ids
-        if len(label_ids) > 0: final_kwargs['label_id'] = label_ids
+        final_kwargs.update(self.parse_targets(to_list(target)))
 
       # Send the request
       try:
@@ -465,10 +470,14 @@ class Services(commands.Cog):
               elif field.selector.target is not None: # ServiceFieldSelectorTarget
                 field_type = str
                 autocomplete_replacements[field_id] = partial(
-                  label_floor_area_device_entity_autocomplete,
-                  entity_filter=to_list(field.selector.target.entity),
-                  device_filter=to_list(field.selector.target.device)
+                  multiple_autocomplete,
+                  func=partial(
+                    label_floor_area_device_entity_autocomplete,
+                    entity_filter=to_list(service.target.entity),
+                    device_filter=to_list(service.target.device)
+                  )
                 )
+                transformers[field_id] = lambda result, interaction: self.parse_targets(transform_multiple_autocomplete(result, interaction))
 
               elif field.selector.template is not None: # ServiceFieldSelectorTemplate
                 field_type = str
@@ -478,7 +487,7 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 if field.selector.text.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                  transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, str))
                   
               elif field.selector.time is not None: # ServiceFieldSelectorTime
                 field_type = str
