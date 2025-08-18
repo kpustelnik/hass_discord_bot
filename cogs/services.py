@@ -45,7 +45,7 @@ class Services(commands.Cog):
         if any_added:
           self.bot.tree.add_command(group)
     except Exception as e:
-      self.bot.logger.error("Failed to fetch domains and create service action commands", type(e), e)
+      self.bot.logger.error("Failed to fetch domains and create service action commands - %s %s", type(e), e)
 
   def check_whitelist(self, domain_id, service_id) -> bool:
     for tmpl_domain_id, tmpl_service_id in self.WHITELISTED_SERVICES:
@@ -140,7 +140,7 @@ class Services(commands.Cog):
             **final_kwargs
           )
       except Exception as e:
-        self.bot.logger.error('Failed to send action to HomeAssistant', type(e), e)
+        self.bot.logger.error("Failed to send action to HomeAssistant - %s %s", type(e), e)
         await interaction.followup.send(f'{Emoji.ERROR} Failed to send action to HomeAssistant', ephemeral=True)
         return
 
@@ -176,7 +176,7 @@ class Services(commands.Cog):
 
         await interaction.followup.send(embed=embed, content=content)
       except Exception as e:
-        self.bot.logger.error('Failed to construct the response', type(e), e)
+        self.bot.logger.error("Failed to construct the response - %s %s", type(e), e)
         await interaction.followup.send(f'{Emoji.ERROR} Failed to construct the response', ephemeral=True)
         return
 
@@ -269,6 +269,7 @@ class Services(commands.Cog):
                 if len(field_all_options) > 25 or not are_all_strings: # Too many options (or they're not plain strings), use autocomplete
                   autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=field_options)
                   transformers[field_id] = partial(require_choice, all_choices=field_options)
+                  field_type = str
                 else:
                   field_type = Literal[*field_all_options]
                   
@@ -282,10 +283,14 @@ class Services(commands.Cog):
                 min_val = field.selector.color_temp.min if field.selector.color_temp.min is not None else field.selector.color_temp.min_mireds
                 max_val = field.selector.color_temp.max if field.selector.color_temp.max is not None else field.selector.color_temp.max_mireds
                 if min_val is not None or max_val is not None:
-                  if max_val is not None and max_val > 9007199254740991:
-                    max_val = 9007199254740991
-                  if min_val is not None and min_val < -9007199254740991:
-                    min_val = -9007199254740991
+                  if max_val is not None:
+                    if max_val > 9007199254740991:
+                      max_val = 9007199254740991
+                    max_val = subtype(max_val)
+                  if min_val is not None:
+                    if min_val < -9007199254740991:
+                      min_val = -9007199254740991
+                    min_val = subtype(min_val)
                   field_type = app_commands.Range[subtype, min_val, max_val]
                 else:
                   field_type = subtype
@@ -384,34 +389,55 @@ class Services(commands.Cog):
 
               elif field.selector.number is not None: # ServiceFieldSelectorNumber
                 subtype = float if field.selector.number is not None and isinstance(field.selector.number, int) and field.selector.number.step != 1 else int
-                if field.selector.number.min is not None or field.selector.number.max is not None:
-                  val_max = field.selector.number.max
-                  if val_max is not None and val_max > 9007199254740991:
-                    val_max = 9007199254740991
-                  field_type = app_commands.Range[subtype, field.selector.number.min, val_max]
+                max_val = field.selector.number.max
+                min_val = field.selector.number.min
+                if min_val is not None or max_val is not None:
+                  if max_val is not None:
+                    if max_val > 9007199254740991:
+                      max_val = 9007199254740991
+                    max_val = subtype(max_val)
+                  if min_val is not None:
+                    if min_val < -9007199254740991:
+                      min_val = -9007199254740991
+                    min_val = subtype(min_val)
+                  field_type = app_commands.Range[subtype, min_val, max_val]
                 else:
                   field_type = subtype
                 if field.default is not None: default_value = subtype(field.default)
+                if field.selector.number.unit_of_measurement is not None:
+                  additional_description = str(field.selector.number.unit_of_measurement)
+
+              elif field.selector.object is not None: # ServiceFieldSelectorObject
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+                transformers[field_id] = self.transform_object
 
               elif field.selector.select is not None: # ServiceFieldSelectorSelect
-                field_options = field.selector.select.options # TODO
+                field_all_options = field.selector.select.options
+                if field.selector.select.sort == True:
+                  field_all_options.sort(key=lambda x: x if isinstance(x, str) else x.label)
+
+                are_all_strings: bool = all(isinstance(x, str) for x in field_all_options)
+                field_options: List[ServiceFieldSelectorSelectOption] = replacePlainSelectorOptions(field_all_options)
+
                 if field.selector.select.multiple == True:
                   if field.default is not None: default_value = str(field.default)
                   field_type = str
-                  transformers[field_id] = partial(lambda c_field_options, input: Services.transform_multiple(
+                  transformers[field_id] = partial(lambda c_field_options, c_allow_custom, input: Services.transform_multiple(
                     input,
-                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options)
-                  ), field_options)
+                    lambda x: (len(c_field_options) == 0 or isinstance(x, type(c_field_options[0]))) and require_choice(input, all_choices=c_field_options, allow_custom=c_allow_custom)
+                  ), field_options, field.selector.select.custom_value == True)
                 else:
-                  if field.default is not None: default_value = type(field_options[0])(field.default) if len(field_options) > 0 else field.default
-                  if len(field_options) > 25: # Too many options, use autocomplete
-                    field_type = str
+                  if field.default is not None: default_value = type(field_options[0].value)(field.default) if len(field_options) > 0 else field.default
+                  if len(field_all_options) > 25 or not are_all_strings or field.selector.select.custom_value == True:
                     autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=field_options)
-                  else: # Use literal type (choices implemented on Discord)
-                    field_type = Literal[*field_options]
-                  transformers[field_id] = partial(require_choice, all_choices=field_options) # Always confirm if the choice is valid
+                    field_type = str
+                  else:
+                    field_type = Literal[*field_all_options]
+                  transformers[field_id] = partial(require_choice, all_choices=field_options, allow_custom=field.selector.select.custom_value == True) # Confirm if the choice is valid
                 
               elif field.selector.target is not None: # ServiceFieldSelectorTarget
+                field_type = str
                 autocomplete_replacements[field_id] = partial(
                   label_floor_area_device_entity_autocomplete,
                   entity_filter=to_list(field.selector.target.entity),
@@ -454,7 +480,7 @@ class Services(commands.Cog):
                   transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
                 '''
               else:
-                self.bot.logger.error("Unknown selector - %s %s %s", domain.domain, service_id, field_id)
+                self.bot.logger.error("Unknown selector - %s %s %s %s", domain.domain, service_id, field_id, str(field.selector))
                 raise Exception('Unknown selector')
 
               if not is_hidden:
@@ -521,7 +547,7 @@ class Services(commands.Cog):
       )
 
     except Exception as e:
-      self.bot.logger.error("Failed to add service", domain.domain, service_id, type(e), e)
+      self.bot.logger.error("Failed to add service - %s %s %s %s", domain.domain, service_id, type(e), e)
 
 async def setup(bot: HASSDiscordBot) -> None:
   await bot.add_cog(Services(bot))
