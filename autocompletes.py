@@ -429,7 +429,8 @@ MULTIPLE_ALWAYS_ADD_RETURN = True
 async def multiple_autocomplete(
     interaction: discord.Interaction,
     current_input: str,
-    func: Callable[[discord.Interaction, str, List[Any]], Awaitable[List[app_commands.Choice[str]]]]
+    func: Callable[[discord.Interaction, str, List[Any]], Awaitable[List[app_commands.Choice[str]]]],
+    allow_custom: bool = False
 ) -> List[app_commands.Choice[str]]:
   re_match = MultipleAutocompleteData.suffix_regex.search(current_input)
 
@@ -460,6 +461,15 @@ async def multiple_autocomplete(
         value=new_madata.get_short_id()
       )
     )
+
+  if allow_custom and len(actual_input) > 0:
+    new_choices = new_choices[:24]
+    add_actual_madata = MultipleAutocompleteData([*prev_data, actual_input], interaction.user.id)
+    
+    new_choices.insert(0, app_commands.Choice(
+      name=shorten_option_name(actual_input, suffix=f' {add_actual_madata.generate_suffix()}'),
+      value=add_actual_madata.get_short_id()
+    ))
 
   if MULTIPLE_ALWAYS_ADD_RETURN and len(prev_data) > 1:
     new_choices = new_choices[:24]

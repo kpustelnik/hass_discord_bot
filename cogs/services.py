@@ -79,6 +79,7 @@ class Services(commands.Cog):
         raise ValueError("Incorrect input elements")
     return parsed_object
   
+  @staticmethod
   def parse_targets(targets: List[str]) -> Dict:
     parsed_kwargs = {}
     area_ids: List[str] = []
