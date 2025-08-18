@@ -73,7 +73,7 @@ class ServiceFieldSelectorAddon(BaseModel, extra='forbid'): # not supported (no 
   name: Optional[str] = None
   slug: Optional[str] = None
 
-class ServiceFieldSelectorArea(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorArea(BaseModel, extra='forbid'):
   entity: Optional[List[ServiceFieldSelectorEntityFilter] | ServiceFieldSelectorEntityFilter] = None
   device: Optional[List[ServiceFieldSelectorDeviceFilter] | ServiceFieldSelectorDeviceFilter] = None
   multiple: Optional[bool] = None
@@ -81,32 +81,32 @@ class ServiceFieldSelectorArea(BaseModel, extra='forbid'): # TODO
 class ServiceFieldSelectorAreasDisplay(BaseModel, extra='forbid'): # not supported
   pass
 
-class ServiceFieldSelectorAttribute(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorAttribute(BaseModel, extra='forbid'):
   entity_id: Optional[List[str] | str] = None
   hide_attributes: Optional[List[str]] = None
 
-class ServiceFieldSelectorAssistPipeline(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorAssistPipeline(BaseModel, extra='forbid'): # not supported
   include_last_used: Optional[bool] = None
 
-class ServiceFieldSelectorBackground(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorBackground(BaseModel, extra='forbid'): # not supported
   original: Optional[bool] = None
   crop: Optional[CropOptions] = None
 
-class ServiceFieldSelectorBackupLocation(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorBackupLocation(BaseModel, extra='forbid'): # not supported
   pass
 
-class ServiceFieldSelectorBoolean(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorBoolean(BaseModel, extra='forbid'):
   pass
 
-class ServiceFieldSelectorButtonToggle(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorButtonToggle(BaseModel, extra='forbid'):
   options: List[str | ServiceFieldSelectorSelectOption]
   translation_key: Optional[str]
   sort: Optional[bool]
 
-class ServiceFieldSelectorColorRGB(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorColorRGB(BaseModel, extra='forbid'):
   pass
 
-class ServiceFieldSelectorColorTemp(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorColorTemp(BaseModel, extra='forbid'):
   unit: Optional[str] = None
   min: Optional[number] = None
   max: Optional[number] = None
@@ -116,62 +116,62 @@ class ServiceFieldSelectorColorTemp(BaseModel, extra='forbid'): # TODO
 class ServiceFieldSelectorCondition(BaseModel, extra='forbid'): # not supported
   optionsInSidebar: Optional[bool] = None
 
-class ServiceFieldSelectorConfigEntry(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorConfigEntry(BaseModel, extra='forbid'): # not supported
   integration: Optional[str] = None
   
-class ServiceFieldSelectorConstant(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorConstant(BaseModel, extra='forbid'):
   label: Optional[str] = None
   value: str | number | bool
   translation_key: Optional[str] = None
 
-class ServiceFieldSelectorConversationAgent(BaseModel, extra='forbid'): # TODO
-  language: Optional[str] = None
+class ServiceFieldSelectorConversationAgent(BaseModel, extra='forbid'):
+  language: Optional[str] = None # filtering by language not supported
 
-class ServiceFieldSelectorCountry(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorCountry(BaseModel, extra='forbid'):
   countries: List[str] = None
   no_sort: Optional[bool] = None
 
-class ServiceFieldSelectorDate(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorDate(BaseModel, extra='forbid'):
   pass
 
-class ServiceFieldSelectorDateTime(BaseModel, extra='forbid'):# TODO
+class ServiceFieldSelectorDateTime(BaseModel, extra='forbid'):
   pass
 
-class ServiceFieldSelectorDevice(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorDevice(BaseModel, extra='forbid'):
   entity: Optional[List[ServiceFieldSelectorEntityFilter] | ServiceFieldSelectorEntityFilter] = None # Only devices having >= 1 matching entity will be displayed
   filter: Optional[List[ServiceFieldSelectorDeviceFilter] | ServiceFieldSelectorDeviceFilter] = None
   multiple: Optional[bool] = None # Submitted as List[str] if multiple
 
-class ServiceFieldSelectorDeviceLegacy(ServiceFieldSelectorDevice): # TODO
+class ServiceFieldSelectorDeviceLegacy(ServiceFieldSelectorDevice):
   integration: Optional[str] = None
   manufacturer: Optional[str] = None
   model: Optional[str] = None
   
-class ServiceFieldSelectorDuration(BaseModel, extra='forbid'): # TODO: Adjust the output
+class ServiceFieldSelectorDuration(BaseModel, extra='forbid'):
   enable_day: Optional[bool] = None
   enable_millisecond: Optional[bool] = None
 
-class ServiceFieldSelectorEntity(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorEntity(BaseModel, extra='forbid'):
   multiple: Optional[bool] = None # Submitted as List[str] if multiple
   include_entities: Optional[List[str]] = None
   exclude_entities: Optional[List[str]] = None
   filter: Optional[List[ServiceFieldSelectorEntityFilter] | ServiceFieldSelectorEntityFilter] = None
   reorder: Optional[bool] = None # Ignore
 
-class ServiceFieldSelectorEntityLegacy(ServiceFieldSelectorEntity): # TODO
+class ServiceFieldSelectorEntityLegacy(ServiceFieldSelectorEntity):
   integration: Optional[str] = None
   domain: Optional[List[str] | str] = None
   device_class: Optional[List[str] | str] = None
 
-class ServiceFieldSelectorFloor(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorFloor(BaseModel, extra='forbid'):
   entity: Optional[List[ServiceFieldSelectorEntityFilter] | ServiceFieldSelectorEntityFilter] = None
   device: Optional[List[ServiceFieldSelectorDeviceFilter] | ServiceFieldSelectorDeviceFilter] = None
   multiple: Optional[bool] = None
 
-class ServiceFieldSelectorFile(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorFile(BaseModel, extra='forbid'): # not supported
   accept: str
 
-class ServiceFieldSelectorIcon(BaseModel, extra='forbid'): # TODO
+class ServiceFieldSelectorIcon(BaseModel, extra='forbid'):
   placeholder: Optional[str] = None
   fallbackPath: Optional[str] = None
 
@@ -406,6 +406,20 @@ def replaceLegacyDeviceSelector(selector: ServiceFieldSelectorDeviceLegacy | Ser
     'filter': new_filter,
     'multiple': selector.multiple
   })
+
+def replacePlainSelectorOptions(options: List[str | ServiceFieldSelectorSelectOption]) -> List[ServiceFieldSelectorSelectOption]:
+  new_options: List[ServiceFieldSelectorSelectOption] = []
+
+  for option in options:
+    if isinstance(option, str):
+      new_options.append(ServiceFieldSelectorSelectOption.model_validate({
+        'label': option,
+        'value': option
+      }))
+    elif isinstance(option, ServiceFieldSelectorSelectOption):
+      new_options.append(option)
+
+  return new_options
 
 # Service bases
 
