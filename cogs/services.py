@@ -4,10 +4,12 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import inspect
-from helpers import shorten, shorten_argument_rename, to_list, is_matching, shorten_option_name
+from helpers import shorten, shorten_argument_rename, to_list, is_matching
 import datetime
 import re
 import pycountry
+import langcodes
+from langcodes.language_lists import CLDR_LANGUAGES
 
 from bot import HASSDiscordBot
 from autocompletes import transform_multiple, transform_object, transform_multiple_autocomplete, multiple_autocomplete, icon_autocomplete, filtered_label_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
@@ -15,6 +17,8 @@ from functools import partial
 from enums.emojis import Emoji
 from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldSelectorDevice, ServiceFieldSelectorEntity, ServiceFieldCollection, ServiceField, ServiceFieldSelectorSelectOption, ServiceFieldSelectorEntityFilter, replacePlainSelectorOptions, replaceLegacyDeviceSelector, replaceLegacyEntitySelector
 from homeassistant_api.errors import RequestError
+
+ALL_LANGUAGES: List[langcodes.Language] = [langcodes.get(x) for x in CLDR_LANGUAGES]
 
 class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
@@ -49,7 +53,7 @@ class Services(commands.Cog):
 
   def check_whitelist(self, domain_id, service_id) -> bool:
     for tmpl_domain_id, tmpl_service_id in self.WHITELISTED_SERVICES:
-      if re.match(tmpl_domain_id, domain_id) is not None and re.match(tmpl_service_id, service_id):
+      if re.match(tmpl_domain_id, domain_id) is not None and re.match(tmpl_service_id, service_id) is not None:
         return True
     return False
   
@@ -83,7 +87,7 @@ class Services(commands.Cog):
     
     return parsed_kwargs
   
-  async def create_service_command(self, group, domain: DomainModel, service_id: str, service: ServiceModel):
+  async def create_service_command(self, group: app_commands.Group, domain: DomainModel, service_id: str, service: ServiceModel) -> None:
     # Create handler function
     constants: Dict[str, Any] = {}
     transformers: Dict[str, Callable[[Any, discord.Interaction], Any]] = {}
@@ -94,20 +98,21 @@ class Services(commands.Cog):
     
       await interaction.response.defer(thinking=True)
 
-      # Apply the constants
+      # Apply the argument constants
       for id, value in constants.items():
         if kwargs[id] == True:
           kwargs[id] = value
         else:
           del kwargs[id]
 
-      # Apply transformers
+      # Apply argument transformers
       try:
         final_kwargs = {
           name: transformers[name](value, interaction) if name in transformers else value
           for name, value in kwargs.items() if value is not None
         }
       except Exception as e:
+        self.bot.logger.error('Failed to apply transformers - %s %s', type(e), e)
         await interaction.followup.send(f'{Emoji.ERROR} {str(e)}', ephemeral=True)
         return
 
@@ -153,8 +158,9 @@ class Services(commands.Cog):
           value='\n'.join(final_targets)
         )
 
-      for i in ['area_id', 'device_id', 'entity_id', 'floor_id', 'label_id']:
+      for i in ['area_id', 'device_id', 'entity_id', 'floor_id', 'label_id']: # Remove the raw target ids from final arguments
         if i in final_kwargs: del final_kwargs[i]
+
       for i, v in final_kwargs.items():
         if v is not None:
           id = renames[i] if i in renames else i
@@ -278,8 +284,9 @@ class Services(commands.Cog):
                         if field.selector.attribute.hide_attributes is None or attribute not in field.selector.attribute.hide_attributes:
                           attributes.add(attribute)
 
-                autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=list(attributes))
-                transformers[field_id] = partial(require_choice, all_choices=field_options)
+                attribute_options = replacePlainSelectorOptions(list(attributes))
+                autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=attribute_options)
+                transformers[field_id] = partial(require_choice, all_choices=attribute_options)
 
               elif field.selector.boolean is not None: # ServiceFieldSelectorBoolean
                 field_type = bool
@@ -342,6 +349,23 @@ class Services(commands.Cog):
               
               elif field.selector.country is not None: # ServiceFieldSelectorCountry
                 field_type = str
+                countries: List[pycountry.ExistingCountries] = [
+                  country
+                  for code in field.selector.country.countries
+                  if (country := pycountry.countries.get(alpha_2=code) or pycountry.countries.get(alpha_3=code)) is not None
+                ]
+                if not (field.selector.country.no_sort == True):
+                  countries.sort(key=lambda x: x.name)
+
+                country_options: List[ServiceFieldSelectorSelectOption] = [
+                  ServiceFieldSelectorSelectOption.model_validate({
+                    'label': x.name,
+                    'value': x.alpha_2 # Home Assistant uses alpha2 ISO 3166
+                  })
+                  for x in countries
+                ]
+                autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=country_options)
+                transformers[field_id] = partial(require_choice, all_choices=country_options)
 
               elif field.selector.date is not None: # ServiceFieldSelectorDate
                 field_type = str
@@ -441,20 +465,27 @@ class Services(commands.Cog):
                   autocomplete_replacements[field_id] = partial(filtered_label_autocomplete, entity_filter=to_list(field.selector.label.entity), device_filter=to_list(field.selector.label.device))
 
               elif field.selector.language is not None: # ServiceFieldSelectorLanguage
-
-
-                '''
-              elif field.selector.text is not None: # ServiceFieldSelectorText
                 field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.text.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                languages: List[langcodes.Language] = ALL_LANGUAGES
+                if field.selector.language.languages is not None:
+                  languages = [
+                    language
+                    for code in field.selector.language.languages
+                    if (language := langcodes.find(code) or langcodes.get(code)) is not None
+                  ]
 
-              elif field.selector.config_entry is not None: # ServiceFieldSelectorText
-                field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.config_entry.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                if not (field.selector.language.no_sort == True):
+                  languages.sort(key=lambda x: x.display_name())
+
+                language_options: List[ServiceFieldSelectorSelectOption] = [
+                  ServiceFieldSelectorSelectOption.model_validate({
+                    'label': x.display_name(),
+                    'value': x.to_tag()
+                  })
+                  for x in languages
+                ]
+                autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=language_options)
+                transformers[field_id] = partial(require_choice, all_choices=language_options)
 
               elif field.selector.location is not None: # ServiceFieldSelectorLocation
                 field_type = str

@@ -435,7 +435,7 @@ class ServiceField(BaseModel, extra='forbid'):
   required: Optional[bool] = None
   advanced: Optional[bool] = None
   selector: Optional[ServiceFieldSelector] = None # Field is not displayed if it's missing (only available in YAML mode)
-  filter: Optional[ServiceFieldFilter] = None
+  filter: Optional[ServiceFieldFilter] = None # Unable to utilize this information as the arguments are pre-created within slash-commands
 
 class ServiceFieldCollection(BaseModel, extra='forbid'):
   collapsed: Optional[bool] = None

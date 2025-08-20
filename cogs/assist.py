@@ -22,7 +22,7 @@ class Assist(commands.Cog):
       description="Processes Home Assistant conversation"
   )
   @app_commands.describe(message = "Message to send", language = "Language")
-  @app_commands.choices(language = [
+  @app_commands.choices(language = [ # There's currently no better way to fetch the languages afaik (could be possible using websocket api)
     app_commands.Choice(name="Polish", value="pl"),
     app_commands.Choice(name="English", value="en"),
   ])
