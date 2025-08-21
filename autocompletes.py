@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from typing import List, Optional, Set, Any, Callable, Awaitable
+from typing import List, Optional, Set, Any, Callable, Awaitable, Tuple
 import base62
 import re
 import yaml
@@ -22,7 +22,7 @@ from enums.emojis import Emoji
 async def get_icon_autocomplete_choices(
   bot: HASSDiscordBot,
   current_input: str
-) -> List[app_commands.Choice[str]]:
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     mdi_icons: List[MDIIconMeta] = await bot.homeassistant_client.cache_async_get_mdi_icons()
     if mdi_icons is None:
@@ -56,7 +56,7 @@ async def icon_autocomplete(
   except_values: Optional[List[str]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_icon_autocomplete_choices(bot, current_input)
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_icon_autocomplete_choices(bot, current_input)
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -70,8 +70,10 @@ async def get_label_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_labels: Optional[Set[str]] = None
-) -> List[app_commands.Choice[str]]:
+  matching_labels: Optional[Set[str]] = None,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     homeassistant_labels: List[LabelModel] = await bot.homeassistant_client.cache_async_custom_get_labels()
     if homeassistant_labels is None:
@@ -80,7 +82,9 @@ async def get_label_autocomplete_choices(
     bot.logger.error("Failed to fetch labels - %s %s", type(e), e)
     return []
     
-  checked_labels = filter(lambda x: x.id in matching_labels, homeassistant_labels) if matching_labels is not None else homeassistant_labels
+  checked_labels = filter(lambda x: (x.id in matching_labels) or (include_values is not None and x.id in include_values), homeassistant_labels) if matching_labels is not None else homeassistant_labels
+  if exclude_values is not None:
+    checked_labels = filter(lambda x: x.id not in exclude_values, checked_labels)
     
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -103,6 +107,8 @@ async def filtered_label_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
@@ -111,7 +117,13 @@ async def filtered_label_autocomplete(
   matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
   matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
   matching_labels: Set[str] | None = await get_matching_labels(bot, matching_areas=matching_areas, matching_devices=matching_devices, matching_entities=matching_entities)
-  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_labels=matching_labels)
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_label_autocomplete_choices(
+    bot,
+    current_input,
+    exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else []),
+    include_values=include_values,
+    matching_labels=matching_labels
+  )
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -127,12 +139,14 @@ async def label_autocomplete(
 
 # Floors
 async def get_floor_autocomplete_choices(
-    bot: HASSDiscordBot,
-    current_input: str,
-    prefix: str = '',
-    display_prefix: str = '',
-    matching_floors: Optional[Set[str]] = None
-) -> List[app_commands.Choice[str]]:
+  bot: HASSDiscordBot,
+  current_input: str,
+  prefix: str = '',
+  display_prefix: str = '',
+  matching_floors: Optional[Set[str]] = None,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     homeassistant_floors: List[FloorModel] = await bot.homeassistant_client.cache_async_custom_get_floors()
     if homeassistant_floors is None:
@@ -141,7 +155,9 @@ async def get_floor_autocomplete_choices(
     bot.logger.error("Failed to fetch floors - %s %s", type(e), e)
     return []
   
-  checked_floors = filter(lambda x: x.id in matching_floors, homeassistant_floors) if matching_floors is not None else homeassistant_floors
+  checked_floors = filter(lambda x: (x.id in matching_floors) or (include_values is not None and x.id in include_values), homeassistant_floors) if matching_floors is not None else homeassistant_floors
+  if exclude_values is not None:
+    checked_floors = filter(lambda x: x.id not in exclude_values, checked_floors)
 
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -164,6 +180,8 @@ async def filtered_floor_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
@@ -172,7 +190,13 @@ async def filtered_floor_autocomplete(
   matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
   matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
   matching_floors: Set[str] | None = await get_matching_floors(bot, matching_areas=matching_areas)
-  choice_list: List[app_commands.Choice[str]] = await get_floor_autocomplete_choices(bot, current_input, matching_floors=matching_floors)
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_floor_autocomplete_choices(
+    bot,
+    current_input,
+    exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else []),
+    include_values=include_values,
+    matching_floors=matching_floors
+  )
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -192,8 +216,10 @@ async def get_area_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_areas: Optional[Set[str]] = None
-) -> List[app_commands.Choice[str]]:
+  matching_areas: Optional[Set[str]] = None,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     homeassistant_areas: List[AreaModel] = await bot.homeassistant_client.cache_async_custom_get_areas()
     if homeassistant_areas is None:
@@ -202,7 +228,9 @@ async def get_area_autocomplete_choices(
     bot.logger.error("Failed to fetch areas - %s %s", type(e), e)
     return []
     
-  checked_areas = filter(lambda x: x.id in matching_areas, homeassistant_areas) if matching_areas is not None else homeassistant_areas
+  checked_areas = filter(lambda x: (x.id in matching_areas) or (include_values is not None and x.id in include_values), homeassistant_areas) if matching_areas is not None else homeassistant_areas
+  if exclude_values is not None:
+    checked_areas = filter(lambda x: x.id not in exclude_values, checked_areas)
     
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -225,6 +253,8 @@ async def filtered_area_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None
 ) -> List[app_commands.Choice[str]]:
@@ -232,7 +262,13 @@ async def filtered_area_autocomplete(
   matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
   matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
   matching_areas: Set[str] | None = await get_matching_areas(bot, matching_entities=matching_entities, matching_devices=matching_devices)
-  choice_list: List[app_commands.Choice[str]] = await get_area_autocomplete_choices(bot, current_input, matching_areas=matching_areas)
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_area_autocomplete_choices(
+    bot,
+    current_input,
+    exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else []),
+    include_values=include_values,
+    matching_areas=matching_areas
+  )
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -252,8 +288,10 @@ async def get_device_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_devices: Optional[Set[str]] = None
-) -> List[app_commands.Choice[str]]:
+  matching_devices: Optional[Set[str]] = None,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     homeassistant_devices: List[DeviceModel] = await bot.homeassistant_client.cache_async_custom_get_devices()
     if homeassistant_devices is None:
@@ -262,7 +300,9 @@ async def get_device_autocomplete_choices(
     bot.logger.error("Failed to fetch devices - %s %s", type(e), e)
     return []
     
-  checked_devices = filter(lambda x: x.id in matching_devices, homeassistant_devices) if matching_devices is not None else homeassistant_devices
+  checked_devices = filter(lambda x: (x.id in matching_devices) or (include_values is not None and x.id in include_values), homeassistant_devices) if matching_devices is not None else homeassistant_devices
+  if exclude_values is not None:
+    checked_devices = filter(lambda x: x.id not in exclude_values, checked_devices)
 
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -285,13 +325,21 @@ async def filtered_device_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
   matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
   matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
-  choice_list: List[app_commands.Choice[str]] = await get_device_autocomplete_choices(bot, current_input, matching_devices=matching_devices)
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_device_autocomplete_choices(
+    bot,
+    current_input,
+    exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else []),
+    include_values=include_values,
+    matching_devices=matching_devices
+  )
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -311,8 +359,10 @@ async def get_entity_autocomplete_choices(
   current_input: str,
   prefix: str = '',
   display_prefix: str = '',
-  matching_entities: Optional[Set[str]] = None
-) -> List[app_commands.Choice[str]]:
+  matching_entities: Optional[Set[str]] = None,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None
+) -> List[Tuple[int, app_commands.Choice[str]]]:
   try:
     homeassistant_entities: List[EntityModel] = await bot.homeassistant_client.cache_async_custom_get_entities()
     if homeassistant_entities is None:
@@ -321,7 +371,9 @@ async def get_entity_autocomplete_choices(
     bot.logger.error("Failed to fetch entities - %s %s", type(e), e)
     return []
   
-  checked_entities = filter(lambda x: x.entity_id in matching_entities, homeassistant_entities) if matching_entities is not None else homeassistant_entities
+  checked_entities = filter(lambda x: ((x.entity_id in matching_entities) or (include_values is not None and x.entity_id in include_values)), homeassistant_entities) if matching_entities is not None else homeassistant_entities
+  if exclude_values is not None:
+    checked_entities = filter(lambda x: x.entity_id not in exclude_values, checked_entities)
 
   target_tokens = tokenize(current_input)
   choice_list = [
@@ -344,10 +396,18 @@ async def filtered_entity_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
-  choice_list: List[app_commands.Choice[str]] = await get_entity_autocomplete_choices(bot, current_input, matching_entities=await get_matching_entities(bot, entity_filter=entity_filter))
+  choice_list: List[Tuple[int, app_commands.Choice[str]]] = await get_entity_autocomplete_choices(
+    bot,
+    current_input,
+    exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else []),
+    include_values=include_values,
+    matching_entities=await get_matching_entities(bot, entity_filter=entity_filter)
+  )
   if except_values is not None:
     choice_list = list(filter(lambda x: x[1].value not in except_values, choice_list))
   choice_list.sort(key=lambda x: x[0], reverse=True)
@@ -367,10 +427,14 @@ async def label_floor_area_device_entity_autocomplete(
   current_input: str,
   except_values: Optional[List[str]] = None,
   *,
+  exclude_values: Optional[List[str]] = None,
+  include_values: Optional[List[str]] = None,
   device_filter: Optional[List[ServiceFieldSelectorDeviceFilter]] = None,
   entity_filter: Optional[List[ServiceFieldSelectorEntityFilter]] = None
 ) -> List[app_commands.Choice[str]]:
   bot: HASSDiscordBot = interaction.client
+  final_exclude_values=(exclude_values if exclude_values is not None else []) + (except_values if except_values is not None else [])
+
   # Get matches
   matching_entities: Set[str] | None = await get_matching_entities(bot, entity_filter=entity_filter)
   matching_devices: Set[str] | None = await get_matching_devices(bot, matching_entities=matching_entities, device_filter=device_filter)
@@ -379,11 +443,11 @@ async def label_floor_area_device_entity_autocomplete(
   matching_labels: Set[str] | None = await get_matching_labels(bot, matching_entities=matching_entities, matching_devices=matching_devices, matching_areas=matching_areas)
 
   # Create all choices
-  label_choice_list = await get_label_autocomplete_choices(bot, current_input, prefix='LABEL$', display_prefix='Label: ', matching_labels=matching_labels)
-  floor_choice_list = await get_floor_autocomplete_choices(bot, current_input, prefix='FLOOR$', display_prefix='Floor: ', matching_floors=matching_floors)
-  area_choice_list = await get_area_autocomplete_choices(bot, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas)
-  device_choice_list = await get_device_autocomplete_choices(bot, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices)
-  entity_choice_list = await get_entity_autocomplete_choices(bot, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities)
+  label_choice_list = await get_label_autocomplete_choices(bot, current_input, prefix='LABEL$', display_prefix='Label: ', matching_labels=matching_labels, exclude_values=final_exclude_values, include_values=include_values)
+  floor_choice_list = await get_floor_autocomplete_choices(bot, current_input, prefix='FLOOR$', display_prefix='Floor: ', matching_floors=matching_floors, exclude_values=final_exclude_values, include_values=include_values)
+  area_choice_list = await get_area_autocomplete_choices(bot, current_input, prefix='AREA$', display_prefix='Area: ', matching_areas=matching_areas, exclude_values=final_exclude_values, include_values=include_values)
+  device_choice_list = await get_device_autocomplete_choices(bot, current_input, prefix='DEVICE$', display_prefix='Device: ', matching_devices=matching_devices, exclude_values=final_exclude_values, include_values=include_values)
+  entity_choice_list = await get_entity_autocomplete_choices(bot, current_input, prefix='ENTITY$', display_prefix='Entity: ', matching_entities=matching_entities, exclude_values=final_exclude_values, include_values=include_values)
   
   choice_list = area_choice_list + device_choice_list + entity_choice_list + floor_choice_list + label_choice_list
   if except_values is not None:

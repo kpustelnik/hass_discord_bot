@@ -15,10 +15,69 @@ from bot import HASSDiscordBot
 from autocompletes import transform_multiple, transform_object, transform_multiple_autocomplete, multiple_autocomplete, icon_autocomplete, filtered_label_autocomplete, filtered_floor_autocomplete, filtered_area_autocomplete, filtered_device_autocomplete, filtered_entity_autocomplete, require_choice, label_floor_area_device_entity_autocomplete, choice_autocomplete, require_permission_autocomplete
 from functools import partial
 from enums.emojis import Emoji
-from models.ServiceModel import DomainModel, ServiceModel, ServiceFieldSelectorDevice, ServiceFieldSelectorEntity, ServiceFieldCollection, ServiceField, ServiceFieldSelectorSelectOption, ServiceFieldSelectorEntityFilter, replacePlainSelectorOptions, replaceLegacyDeviceSelector, replaceLegacyEntitySelector
+from models.ServiceModel import ServiceFieldSelectorLocation, ServiceFieldSelectorDuration, DomainModel, ServiceModel, ServiceFieldSelectorDevice, ServiceFieldSelectorEntity, ServiceFieldCollection, ServiceField, ServiceFieldSelectorSelectOption, ServiceFieldSelectorEntityFilter, replacePlainSelectorOptions, replaceLegacyDeviceSelector, replaceLegacyEntitySelector
 from homeassistant_api.errors import RequestError
 
 ALL_LANGUAGES: List[langcodes.Language] = [langcodes.get(x) for x in CLDR_LANGUAGES]
+
+def transform_duration(input: str, selector: ServiceFieldSelectorDuration):
+  split = [int(x) for x in input.split(':')]
+  expected_count = 3 + int(selector.enable_day == True) + int(selector.enable_millisecond == True)
+  if len(split) != expected_count:
+    raise Exception("Incorrect duration format.")
+  
+  obj: Dict[str, int] = dict()
+  offset = 1 if selector.enable_day == True else 0
+
+  if selector.enable_day == True:
+    days = split[0]
+    if days < 0: raise Exception("Days must be lower or equal to 0")
+    obj['days'] = days
+  
+  hours = split[offset]
+  if hours < 0 or hours >= 24: raise Exception("Hours must be between 0 and 23")
+  obj['hours'] = hours
+
+  mins = split[offset + 1]
+  if mins < 0 or mins >= 60: raise Exception("Minutes must be between 0 and 59")
+  obj['minutes'] = mins
+
+  seconds = split[offset + 2]
+  if seconds < 0 or seconds >= 60: raise Exception("Seconds must be between 0 and 59")
+  obj['seconds'] = seconds
+
+  if selector.enable_millisecond == True:
+    milliseconds = split[offset + 3]
+    if milliseconds < 0 or milliseconds >= 60: raise Exception("Milliseconds must be between 0 and 60")
+    obj['milliseconds'] = milliseconds
+  
+  return obj
+
+def transform_location(input: str, selector: ServiceFieldSelectorLocation, default_radius: float=None):
+  split = [float(x) for x in input.split(';')]
+  expected_count = 2 + int(selector.radius == True and not (selector.radius_readonly == True))
+  if len(split) != expected_count:
+    raise Exception("Incorrect location format.")
+
+  obj: Dict[str, int] = dict()
+  
+  lat: float = split[0]
+  if lat < -90 or lat > 90: raise Exception("Latitude must be between -90 and 90")
+  obj['latitude'] = lat
+
+  lon: float = split[1]
+  if lat < -180 or lat > 180: raise Exception("Longitude must be between -180 and 180")
+  obj['longitude'] = lon
+
+  if selector.radius == True:
+    if selector.radius_readonly == True:
+      if default_radius is None:
+        raise Exception("No preset radius")
+      obj['radius'] = default_radius
+    else:
+      obj['radius'] = split[2]
+  
+  return obj
 
 class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
@@ -28,6 +87,7 @@ class Services(commands.Cog):
       ['light', 'turn.*']
     ]
     self.USE_AUTOCOMPLETE_MULTIPLE = True
+    self.ALLOW_UNSUPPORTED = True
 
   async def cog_load(self) -> None:
     try:
@@ -311,7 +371,8 @@ class Services(commands.Cog):
               elif field.selector.color_rgb is not None: # ServiceFieldSelectorColorRGB
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                transformers[field_id] = lambda input, _: Services.transform_multiple(input, lambda x: isinstance(x, int) and x >= 0 and x <= 255, minlen=3, maxlen=3)
+                transformers[field_id] = lambda input, _: transform_multiple(input, lambda x: isinstance(x, int) and x >= 0 and x <= 255, minlen=3, maxlen=3, delimiter=';', delimiter_transformer=lambda x: int(x))
+                additional_description = 'R;G;B'
 
               elif field.selector.color_temp is not None: # ServiceFieldSelectorColorTemp
                 subtype = int
@@ -366,6 +427,7 @@ class Services(commands.Cog):
                 ]
                 autocomplete_replacements[field_id] = partial(choice_autocomplete, all_choices=country_options)
                 transformers[field_id] = partial(require_choice, all_choices=country_options)
+                if field.default is not None: default_value = str(field.default)
 
               elif field.selector.date is not None: # ServiceFieldSelectorDate
                 field_type = str
@@ -399,6 +461,22 @@ class Services(commands.Cog):
                 else:
                   autocomplete_replacements[field_id] = partial(filtered_device_autocomplete, device_filter=to_list(new_device_selector.filter), entity_filter=to_list(new_device_selector.entity))
 
+              elif field.selector.duration is not None: # ServiceFieldSelectorDuration
+                field_type = str
+                if field.default is not None:
+                  all_values: List[str] = []
+                  if field.selector.duration.enable_days:
+                    all_values.append(str(field.default.days))
+                  all_values.append(str(field.default.hours))
+                  all_values.append(str(field.default.minutes))
+                  all_values.append(str(field.default.seconds))
+                  if field.selector.duration.milliseconds:
+                    all_values.append(str(field.default.milliseconds))
+                  default_value = ':'.join(all_values)
+
+                additional_description = f'{'DD:' if field.selector.duration.enable_day == True else ''}HH:MM:SS{':mm' if field.selector.duration.enable_millisecond == True else ''}'
+                transformers[field_id] = partial(transform_duration, selector=field.selector.duration)
+
               elif field.selector.entity is not None: # ServiceFieldSelectorEntity | ServiceFieldSelectorEntityLegacy
                 new_entity_selector: ServiceFieldSelectorEntity = replaceLegacyEntitySelector(field.selector.entity)
                 field_type = str
@@ -409,7 +487,9 @@ class Services(commands.Cog):
                       multiple_autocomplete,
                       func=partial(
                         filtered_entity_autocomplete,
-                        entity_filter=to_list(new_entity_selector.filter)
+                        entity_filter=to_list(new_entity_selector.filter),
+                        exclude_values=field.selector.entity.exclude_entities,
+                        include_values=field.selector.entity.include_entities
                       ),
                       allow_custom=True
                     )
@@ -417,7 +497,12 @@ class Services(commands.Cog):
                   else:
                     transformers[field_id] = lambda input, _: transform_multiple(input, lambda x: isinstance(x, str), delimiter=';')
                 else:
-                  autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, entity_filter=to_list(new_entity_selector.filter))
+                  autocomplete_replacements[field_id] = partial(
+                    filtered_entity_autocomplete,
+                    entity_filter=to_list(new_entity_selector.filter),
+                    exclude_values=field.selector.entity.exclude_entities,
+                    include_values=field.selector.entity.include_entities
+                  )
                 
               elif field.selector.floor is not None: # ServiceFieldSelectorFloor
                 field_type = str
@@ -489,10 +574,18 @@ class Services(commands.Cog):
 
               elif field.selector.location is not None: # ServiceFieldSelectorLocation
                 field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.conversation_agent.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
+                if field.default is not None:
+                  all_values: List[str] = []
+                  all_values.append(str(field.default.latitude))
+                  all_values.append(str(field.default.longitude))
+                  if field.selector.location.radius:
+                    all_values.append(str(field.default.radius))
+                  default_value = ';'.join(all_values)
 
+                additional_description = f'LAT;LONG{';RADIUS' if field.selector.location.radius == True else ''}'
+                transformers[field_id] = partial(transform_location, selector=field.selector.location, default_radius=field.default.radius if field.default is not None else None)
+                field_type = str
+                
               elif field.selector.number is not None: # ServiceFieldSelectorNumber
                 subtype = float if field.selector.number is not None and isinstance(field.selector.number, int) and field.selector.number.step != 1 else int
                 max_val = field.selector.number.max
@@ -593,27 +686,59 @@ class Services(commands.Cog):
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
                 additional_description = 'HH:MM' if field.selector.time.no_second == True else 'HH:MM:SS'
-              
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.addon is not None: # ServiceFieldSelectorAddon
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.assist_pipeline is not None: # ServiceFieldSelectorAssistPipeline
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.backup_location is not None: # ServiceFieldSelectorBackupLocation
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.config_entry is not None: # ServiceFieldSelectorConfigEntry
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.state is not None: # ServiceFieldSelectorState
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+              elif self.ALLOW_UNSUPPORTED and field.selector.statistic is not None: # ServiceFieldSelectorStatistic
+                field_type = str
+                if field.default is not None: default_value = str(field.default)
+
+                entity_filter: List[ServiceFieldSelectorEntityFilter] | None = None
+                if field.selector.statistic.device_class is not None:
+                  entity_filter = [ServiceFieldSelectorEntityFilter.model_validate({ 'device_class': field.selector.statistic.device_class })]
+
+                # Allow selecting actual entity here
+                if field.selector.statistic.multiple == True:
+                  if self.USE_AUTOCOMPLETE_MULTIPLE:
+                    autocomplete_replacements[field_id] = partial(
+                      multiple_autocomplete,
+                      func=partial(
+                        filtered_entity_autocomplete,
+                        entity_filter=entity_filter
+                      ),
+                      allow_custom=True
+                    )
+                    transformers[field_id] = transform_multiple_autocomplete
+                  else:
+                    transformers[field_id] = lambda input, _: transform_multiple(input, lambda x: isinstance(x, str), delimiter=';')
                 else:
-                  autocomplete_replacements[field_id] = partial(filtered_entity_autocomplete, integration=field.selector.statistic.integration, domain=field.selector.statistic.domain)
+                  autocomplete_replacements[field_id] = partial(
+                    filtered_entity_autocomplete,
+                    entity_filter=entity_filter
+                  )
 
-              elif field.selector.object is not None: # ServiceFieldSelectorObject
+              elif self.ALLOW_UNSUPPORTED and field.selector.theme is not None: # ServiceFieldSelectorTheme
                 field_type = str
                 if field.default is not None: default_value = str(field.default)
-                transformers[field_id] = self.transform_object
-                
-              elif field.selector.template is not None: # ServiceFieldSelectorText
-                field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.template.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
-
-              elif field.selector.icon is not None: # ServiceFieldSelectorText
-                field_type = str
-                if field.default is not None: default_value = str(field.default)
-                if field.selector.icon.multiple == True:
-                  transformers[field_id] = lambda input: Services.transform_multiple(input, lambda x: isinstance(x, str))
-                '''
+              
               else:
                 self.bot.logger.error("Unknown selector - %s %s %s %s", domain.domain, service_id, field_id, str(field.selector))
                 raise Exception('Unknown selector')
