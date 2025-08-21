@@ -1,3 +1,4 @@
+import os
 from typing import Optional, Literal, List, Dict, Any, Callable, Set
 import discord
 from discord.ext import commands
@@ -83,9 +84,11 @@ class Services(commands.Cog):
   def __init__(self, bot: HASSDiscordBot) -> None:
     self.bot = bot
 
-    self.WHITELISTED_SERVICES = [
-      ['light', 'turn.*']
-    ]
+    try:
+      self.WHITELISTED_SERVICES = json.loads(os.getenv('WHITELISTED_SERVICES'))
+    except Exception as e:
+      self.bot.logger.error("Failed to load whitelisted services - %s %s", type(e), e)
+      raise Exception("Failed to load whitelisted services")
     self.USE_AUTOCOMPLETE_MULTIPLE = True
     self.ALLOW_UNSUPPORTED = True
 
