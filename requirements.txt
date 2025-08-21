@@ -7,3 +7,4 @@ pydantic
 pyyaml
 pycountry==24.6.1
 pybase62==1.0.0
+langcodes
