@@ -18,7 +18,7 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setFormatter(logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", "%Y-%m-%d %H:%M:%S", style="{"))
 file_handler = RotatingFileHandler(
   'logs/usage.log',
-  maxBytes=5*1024*1024, 
+  maxBytes=25*1024*1024, 
   backupCount=5
 )
 file_handler.setFormatter(logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", "%Y-%m-%d %H:%M:%S", style="{"))
