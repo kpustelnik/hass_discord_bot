@@ -26,7 +26,7 @@ class ServiceFieldSelectorDeviceFilter(BaseModel, extra='forbid'):
 
 class CropOptions(BaseModel, extra='forbid'):
   round: bool
-  type: Optional[str] # "image/jpeg" / "image/png"
+  type: Optional[str] = None # "image/jpeg" / "image/png"
   quality: Optional[number] = None
   aspectRatio: Optional[number] = None
 
@@ -100,8 +100,8 @@ class ServiceFieldSelectorBoolean(BaseModel, extra='forbid'):
 
 class ServiceFieldSelectorButtonToggle(BaseModel, extra='forbid'):
   options: List[str | ServiceFieldSelectorSelectOption]
-  translation_key: Optional[str]
-  sort: Optional[bool]
+  translation_key: Optional[str] = None
+  sort: Optional[bool] = None
 
 class ServiceFieldSelectorColorRGB(BaseModel, extra='forbid'):
   pass
@@ -128,7 +128,7 @@ class ServiceFieldSelectorConversationAgent(BaseModel, extra='forbid'):
   language: Optional[str] = None # filtering by language not supported
 
 class ServiceFieldSelectorCountry(BaseModel, extra='forbid'):
-  countries: List[str] = None
+  countries: List[str]
   no_sort: Optional[bool] = None
 
 class ServiceFieldSelectorDate(BaseModel, extra='forbid'):
@@ -216,7 +216,7 @@ class ServiceFieldSelectorObject(BaseModel, extra='forbid'):
   label_field: Optional[str] = None
   description_field: Optional[str] = None
   translation_key: Optional[str] = None
-  fields: Dict[str, ServiceFieldSelectorObjectField] = None
+  fields: Dict[str, ServiceFieldSelectorObjectField]
   multiple: Optional[bool] = None
 
 class ServiceFieldSelectorQRCode(BaseModel, extra='forbid'): # not supported (does not return anything)
@@ -236,7 +236,7 @@ class ServiceFieldSelectorSelect(BaseModel, extra='forbid'):
   multiple: Optional[bool] = None # Submitted as List[str] if multiple
   custom_value: Optional[bool] = None
   mode: Optional[ServiceFieldSelectorSelectMode] = None
-  options: List[str | ServiceFieldSelectorSelectOption] = None
+  options: List[str | ServiceFieldSelectorSelectOption]
   translation_key: Optional[str] = None
   sort: Optional[bool] = None
   reorder: Optional[bool] = None
@@ -250,8 +250,8 @@ class ServiceFieldSelectorStateOption(BaseModel, extra='forbid'):
   value: Any
 
 class ServiceFieldSelectorState(BaseModel, extra='forbid'): # not supported
-  extra_options: Optional[List[ServiceFieldSelectorStateOption]]
-  entity_id: Optional[str | List[str]]
+  extra_options: Optional[List[ServiceFieldSelectorStateOption]] = None
+  entity_id: Optional[str | List[str]] = None
   attribute: Optional[str] = None
   hide_states: Optional[List[str]] = None
   multiple: Optional[bool] = None
