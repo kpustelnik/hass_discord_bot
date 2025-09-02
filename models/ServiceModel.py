@@ -216,7 +216,7 @@ class ServiceFieldSelectorObject(BaseModel, extra='forbid'):
   label_field: Optional[str] = None
   description_field: Optional[str] = None
   translation_key: Optional[str] = None
-  fields: Dict[str, ServiceFieldSelectorObjectField]
+  fields: Optional[Dict[str, ServiceFieldSelectorObjectField]] = None
   multiple: Optional[bool] = None
 
 class ServiceFieldSelectorQRCode(BaseModel, extra='forbid'): # not supported (does not return anything)
