@@ -194,6 +194,7 @@ class ServiceFieldSelectorLocation(BaseModel, extra='forbid'):
 
 class ServiceFieldSelectorMedia(BaseModel, extra='forbid'): # not supported
   accept: Optional[List[str]] = None
+  multiple: Optional[bool] = None
 
 class ServiceFieldSelectorNavigation(BaseModel, extra='forbid'): # not supported
   pass
